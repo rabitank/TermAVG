@@ -1,0 +1,2 @@
+# TerminalDialogue
+一个终端实现galgame式文本对话的程序，支持基础特效和yaml读取
