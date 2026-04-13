@@ -1,0 +1,9 @@
+pub mod pages;
+pub mod setting;
+pub mod game;
+pub mod app;
+pub mod audio;
+pub mod gameflow;
+pub use setting::SETTING;
+pub mod utils;
+pub mod art;
