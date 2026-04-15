@@ -124,7 +124,7 @@ impl Interpreter {
                 self.status = InterpreterStatus::Waiting(condition);
             }
             SessionStatus::Completed => {
-                info!("Interpreter: session {} completed", session.session_id);
+                // info!("Interpreter: session {} completed", session.session_id);
                 self.status = InterpreterStatus::SessionEnd;
             }
             SessionStatus::Error(e) => {

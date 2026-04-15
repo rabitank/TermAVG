@@ -293,7 +293,7 @@ impl ManagedSink {
         let t = self.curve.apply(self.fade_progress);
         self.current_volume =
             self.fade_start_volume + (self.target_volume - self.fade_start_volume) * t;
-        info!("sink is update : volume {}", self.current_volume);
+        //info!("sink is update : volume {}", self.current_volume);
         self.apply_volume();
 
         if self.fade_progress >= 1.0 {

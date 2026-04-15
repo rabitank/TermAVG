@@ -13,7 +13,7 @@
 <p align="center">
   一个使用 Rust 编写、在终端渲染的像素风文字冒险（AVG）引擎。<br />
   引擎以脚本解释器驱动剧情，支持对话、角色、音频和存档流程。<br />
-  <a href="https://github.com/rabitank/TermAVG">查看游戏《终末之爱》示例项目</a>
+  <a href="https://github.com/rabitank/TerminalLove">查看游戏《终末之爱》示例项目</a>
 </p>
 
 ## 目录
@@ -39,7 +39,7 @@
 
 - 终端渲染：基于 `ratatui` + `crossterm` 的 TUI 绘制与事件处理。
 - 脚本驱动：内置脚本解析器，支持赋值、调用、`wait`、链式调用等语法。
-- 多模块工作区：`tmj_app`、`tmj_core`、`tmj_macro` 分层清晰。
+- 多模块工作区：`tmj_app`、`tmj_core`、`tmj_macro` 。
 - 可配置启动：通过 `setting.toml` 指定分辨率、资源路径和布局参数。
 - 音频与资源：支持角色立绘、表情资源和音频播放。
 
@@ -76,6 +76,10 @@ cargo build
 ```bash
 cargo run
 ```
+建议使用,否则会出现debug模式下日志打印和游戏界面冲突
+```bash
+cargo run 2> debug.txt
+```
 
 首次运行时如果没有 `setting.toml`，程序会按默认配置自动创建。
 
@@ -95,7 +99,7 @@ default_face_img = "resource/default_face_img.png"
 - `resolution`: 终端渲染尺寸（字符单位）。
 - `save_dir`: 存档目录。
 - `entre_script`: 入口脚本路径。
-- `default_bg_img` / `default_face_img`: 默认背景和头像资源。
+- `default_bg_img` / `default_face_img`: 默认背景和头像资源,是必须的
 
 > 注意：路径均相对于项目根目录解析。
 
@@ -104,6 +108,7 @@ default_face_img = "resource/default_face_img.png"
 ### 分段规则
 
 脚本使用 `#数字` 作为段落分隔标记，例如 `#1`、`#2`。引擎按段读取剧情内容。
+脚本后缀为`fss`, 你也可以在setting中指定需要自动添加`#`序号的文件,会在游戏开始时处理生成对应的`fss`文件.目前默认路径在`resource`下
 
 ### 常见命令
 
@@ -113,7 +118,7 @@ default_face_img = "resource/default_face_img.png"
 - `变量 = 命令 参数...`（命令返回值赋值）
 - `对象.方法 参数...`（调用）
 - `set 路径 参数...`（设置）
-- `once 路径 参数...`（一次性命令）
+- `once 路径 参数...`（一次性命令,在该段落结束后会还原）
 - `wait 0.5`（等待时间）
 - `命令1 -> 命令2`（链式调用）
 
@@ -146,10 +151,8 @@ wait 0.2
 
 ## 贡献
 
-目前添加功能和演出效果中,欢迎提交 Issue 和 PR：
-
+目前添加功能,完善示例中,欢迎提交 Issue 和 PR：
 - 功能建议：请描述使用场景和预期行为
-- 代码贡献：建议先开 Issue 对齐设计
 
 <!-- links -->
 [contributors-shield]: https://img.shields.io/github/contributors/rabitank/TermAVG.svg?style=flat-square

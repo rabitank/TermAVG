@@ -57,9 +57,9 @@ impl PipeStage for DialogueFrameStage {
             .get(var_frame::CONTENT)
             .and_then(|x| x.as_str().map(|s| s.to_string()))
             .unwrap_or_default();
-        tracing::info!("frame target {text}");
+        // tracing::info!("frame target {text}");
         let rendered = typewriter_render_text(&frame, &text, screen.last_tick_secs, true, 40.0);
-        tracing::info!("frame current {rendered}");
+        // tracing::info!("frame current {rendered}");
         let text_par = Paragraph::new(rendered);
         let text_rect = Rect {
             x: SETTING.layout.text_lt.0 + area.x,
