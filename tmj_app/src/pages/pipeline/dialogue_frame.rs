@@ -6,8 +6,8 @@ use tmj_core::script::TypeName;
 
 use crate::{
     SETTING, art::theme, pages::{
-        pipeline::PipeStage,
-        script_def::{env::_TEXT_OBJ, text_obj},
+        pipeline::{PipeStage, typewriter::typewriter_render_text},
+        script_def::{env::_TEXT_OBJ, text_obj, var_frame},
     }
 };
 
@@ -16,7 +16,7 @@ pub struct DialogueFrameStage;
 
 impl PipeStage for DialogueFrameStage {
     fn binding_vars() -> &'static [&'static str] {
-        &[_TEXT_OBJ]
+        &[_TEXT_OBJ, var_frame::FRAME]
     }
 
     fn draw<'a>(
@@ -40,15 +40,31 @@ impl PipeStage for DialogueFrameStage {
             dia_block.render(rect, buffer);
         }
 
-        let binding = Self::get_script_vars(ctx).pop().unwrap()?;
-        let text_obj = binding.as_table().unwrap();
-        let binding = text_obj.borrow_mut().get(text_obj::CONTENT).unwrap();
-        let text_par = Paragraph::new(binding.as_str().unwrap());
-        let text_rect = Rect{
-            x: SETTING.layout.text_lt.0 as u16 + area.x,
-            y: SETTING.layout.text_lt.1 as u16 + area.y,
-            width: SETTING.layout.text_size.0 as u16,
-            height:SETTING.layout.text_size.1 as u16
+        let mut vars = Self::get_script_vars(ctx);
+        let frame = vars.pop().unwrap()?.as_table().unwrap();
+        let text_obj = vars.pop().unwrap()?.as_table().unwrap();
+
+        let frame_show = frame
+            .borrow()
+            .get(var_frame::VISIBLE)
+            .and_then(|x| x.as_bool())
+            .unwrap_or(true);
+        if !frame_show {
+            return Ok(buffer);
+        }
+
+        let text = text_obj
+            .borrow()
+            .get(text_obj::CONTENT)
+            .and_then(|x| x.as_str().map(|s| s.to_string()))
+            .unwrap_or_default();
+        let rendered = typewriter_render_text(&frame, &text, screen.last_tick_secs, true, 40.0);
+        let text_par = Paragraph::new(rendered);
+        let text_rect = Rect {
+            x: SETTING.layout.text_lt.0 + area.x,
+            y: SETTING.layout.text_lt.1 + area.y,
+            width: SETTING.layout.text_size.0,
+            height: SETTING.layout.text_size.1,
         };
         let text_rect = text_rect.clamp(rect);
         text_par.render(text_rect, buffer);

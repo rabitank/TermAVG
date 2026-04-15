@@ -4,8 +4,13 @@ pub mod background;
 pub use background::BackgrondStage;
 pub mod dialogue_frame;
 pub use dialogue_frame::DialogueFrameStage;
+pub mod paragraph;
+pub use paragraph::ParagraphStage;
 pub mod face;
 pub use face::FaceStage;
+pub mod layers;
+pub use layers::LayersStage;
+pub mod typewriter;
 
 
 use ratatui::{buffer::Buffer, layout::Rect};

@@ -9,6 +9,7 @@ use crate::setting;
 #[derive(Serialize, Deserialize)]
 pub struct GameSetting {
     pub resolution: (u16, u16),
+    pub preprogress_script: Vec<String>, // 需要预处理的脚本路径
     pub is_force_skipable: bool,
     pub save_dir: PathBuf,
     pub entre_script: PathBuf,
@@ -79,6 +80,7 @@ impl Default for GameSetting {
             resolution: resolution, // 3: 2, 但是注意这里的尺寸也是按照字符宽高比为1:2来计算的
             is_force_skipable: false,
             save_dir: "save".into(),
+            preprogress_script: Vec::new(),
             entre_script: "resource/script.fs".into(),
             default_bg_img: "resource/default_background_img.png".into(),
             default_face_img: "resource/default_face_img.png".into(),

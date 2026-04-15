@@ -17,7 +17,8 @@ use tracing::info;
 use crate::SETTING;
 use crate::audio::AUDIOM;
 use crate::pages::pipeline::{
-    BackgrondStage, CharactersStage, DialogueFrameStage, FaceStage, PipeStage,
+    BackgrondStage, CharactersStage, DialogueFrameStage, FaceStage, LayersStage, ParagraphStage,
+    PipeStage,
 };
 
 use crate::pages::pop_items::CmdInputItem;
@@ -28,6 +29,7 @@ use crate::pages::{Draw, Screen, UserScreen};
 
 pub struct DialogueScene {
     frame: usize,
+    pub last_tick_secs: f64,
     pub hide_dialouge: bool, // bool
     session_id: usize,
     script_reader: StreamSectionReader,
@@ -55,6 +57,7 @@ impl DialogueScene {
         let script_reader = StreamSectionReader::new(script_path, 1024).unwrap();
         let scene = DialogueScene {
             frame: 0,
+            last_tick_secs: 0.0,
             hide_dialouge: false,
             session_id: 0,
             script_reader,
@@ -120,7 +123,9 @@ impl Draw for DialogueScene {
             let buffer = stage_draw_call::<BackgrondStage>(&self, &ctx, buffer, area);
             let buffer = stage_draw_call::<CharactersStage>(&self, &ctx, buffer, area);
             let buffer = stage_draw_call::<DialogueFrameStage>(&self, &ctx, buffer, area);
-            let _buffer = stage_draw_call::<FaceStage>(&self, &ctx, buffer, area);
+            let buffer = stage_draw_call::<ParagraphStage>(&self, &ctx, buffer, area);
+            let buffer = stage_draw_call::<FaceStage>(&self, &ctx, buffer, area);
+            let _buffer = stage_draw_call::<LayersStage>(&self, &ctx, buffer, area);
         }
         // draw Cmd Input
         #[cfg(debug_assertions)]
@@ -267,6 +272,7 @@ impl EventDispatcher for DialogueScene {
 
     fn handle_tick(&mut self, tick: std::time::Duration) {
         let mut interpreter = self.interpreter.borrow_mut();
+        self.last_tick_secs = tick.as_secs_f64();
         self.frame += 1;
 
         match interpreter.update(tick.as_secs_f64()) {

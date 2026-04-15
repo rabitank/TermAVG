@@ -365,14 +365,33 @@ impl SerializableContext {
                     );
                     match build_res {
                         Ok(ins) => {
+                            // typed table 通常不是内置变量；直接覆盖写入即可
                             ctx.borrow_mut().reg_val(name, ins);
                         }
                         Err(s) => {
                             tracing::error!(s);
                         }
                     }
+                } else {
+                    // untyped table：优先与已存在内置 table 合并
+                    if let Some(existing) = ctx.borrow().get_val(name) {
+                        if let Some(dst) = existing.as_table() {
+                            let src_b = table_rc.borrow();
+                            dst.borrow_mut().merge_from(&src_b);
+                            continue;
+                        }
+                    }
+                    ctx.borrow_mut().reg_val(name, ScriptValue::Table(table_rc));
                 }
             } else {
+                // 非 table 值：当存档值是 Nil 时，避免把运行时注册的全局函数/对象覆盖掉
+                if v.is_nil() {
+                    if let Some(existing) = ctx.borrow().get_val(name) {
+                        if existing.is_function() || existing.is_rust_object() {
+                            continue;
+                        }
+                    }
+                }
                 ctx.borrow_mut().reg_val(name, v);
             }
         }

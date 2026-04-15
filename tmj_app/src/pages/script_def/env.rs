@@ -7,7 +7,12 @@ use tmj_core::{
 };
 
 use crate::{
-    SETTING, audio::{self, AUDIOM, Tracks, load_audio}, pages::{pipeline::character_ls, script_def::{BaseVariable, Character, TextObj, VCharacterLs, VFrame, text_obj}}
+    SETTING,
+    audio::{self, AUDIOM, Tracks, load_audio},
+    pages::script_def::{
+        BaseVariable, Character, TextObj, VCharacterLs, VFrame, VLayer, VParagraph, text_obj,
+        var_layer, var_paragraph,
+    },
 };
 
 macro_rules! script_str {
@@ -27,6 +32,8 @@ lower_str!(FACE_PATH);
 
 pub use super::var_character_ls::CHARACTER_LS;
 pub use super::var_frame::FRAME;
+pub use super::var_layer::LAYERS;
+pub use super::var_paragraph::PARAGRAPH;
 
 
 // global function
@@ -34,10 +41,14 @@ lower_str!(BGM);
 lower_str!(TEXT);
 lower_str!(DISPLAY_NAME);
 lower_str!(SAVE_TO);
+lower_str!(ADD_LAYER);
+lower_str!(DEL_LAYER);
 
 fn regist_base_gvar(ctx: &mut ScriptContext) -> anyhow::Result<()> {
     VCharacterLs::regist_to_ctx(ctx)?;
     VFrame::regist_to_ctx(ctx)?;
+    VParagraph::regist_to_ctx(ctx)?;
+    VLayer::regist_to_ctx(ctx)?;
     Ok(())
 }
 
@@ -61,6 +72,7 @@ pub fn init_env(ctx: ContextRef) {
         ctx.type_registry.register::<Character>();
         ctx.type_registry.register::<TextObj>();
     }
+    let _ = regist_base_gvar(&mut ctx);
     {
         ctx.reg_func(SAVE_TO, |_c, args| {
             let table = args[0]
@@ -77,17 +89,99 @@ pub fn init_env(ctx: ContextRef) {
     }
 
     {
+        ctx.reg_func(ADD_LAYER, |c, args| {
+            if args.len() < 2 {
+                anyhow::bail!("add_layer requires at least type and source/name");
+            }
+
+            let layer_type = args[0]
+                .as_str()
+                .ok_or(anyhow::anyhow!("add_layer arg0 should be layer type string"))?
+                .to_string();
+
+            let (name, source) = if args.len() >= 3 {
+                let name = args[1]
+                    .as_str()
+                    .ok_or(anyhow::anyhow!("add_layer arg1 should be layer name string"))?
+                    .to_string();
+                let source = args[2]
+                    .as_str()
+                    .ok_or(anyhow::anyhow!("add_layer arg2 should be source string"))?
+                    .to_string();
+                (name, source)
+            } else {
+                let source = args[1]
+                    .as_str()
+                    .ok_or(anyhow::anyhow!("add_layer arg1 should be source string"))?
+                    .to_string();
+                let name = std::path::Path::new(&source)
+                    .file_stem()
+                    .and_then(|x| x.to_str())
+                    .unwrap_or("layer")
+                    .to_string();
+                (name, source)
+            };
+
+            let layers = c
+                .borrow()
+                .get_val(LAYERS)
+                .ok_or(anyhow::anyhow!("layers not found"))?
+                .as_table()
+                .ok_or(anyhow::anyhow!("layers should be table"))?;
+
+            let mut layer_item = tmj_core::script::Table::new();
+            layer_item.set(var_layer::LAYER_TYPE, ScriptValue::string(layer_type));
+            layer_item.set(var_layer::SOURCE, ScriptValue::string(source));
+            layer_item.set(var_layer::VISIBLE, ScriptValue::bool(true));
+            layers
+                .borrow_mut()
+                .set(name, ScriptValue::Table(std::rc::Rc::new(std::cell::RefCell::new(layer_item))));
+
+            Ok(ScriptValue::Table(layers))
+        });
+    }
+
+    {
+        ctx.reg_func(DEL_LAYER, |c, args| {
+            let name = args
+                .first()
+                .and_then(|x| x.as_str())
+                .ok_or(anyhow::anyhow!("del_layer requires name string"))?;
+            let layers = c
+                .borrow()
+                .get_val(LAYERS)
+                .ok_or(anyhow::anyhow!("layers not found"))?
+                .as_table()
+                .ok_or(anyhow::anyhow!("layers should be table"))?;
+            layers.borrow_mut().remove(name);
+            Ok(ScriptValue::Table(layers))
+        });
+    }
+
+    {
         ctx.reg_func(TEXT, |c, args| {
-            let raw_text = args[0].as_str().expect("!!! error empty text");
+            let raw_text = args
+                .first()
+                .and_then(|x| x.as_str())
+                .ok_or(anyhow::anyhow!("text requires content string"))?;
             let text_obj = c
                 .borrow()
                 .get_val(_TEXT_OBJ)
-                .expect("!!! no text obj")
+                .ok_or(anyhow::anyhow!("no text obj"))?
                 .as_table()
-                .unwrap();
-            text_obj
-                .borrow_mut()
-                .set(text_obj::CONTENT, raw_text.to_string().into_script_val());
+                .ok_or(anyhow::anyhow!("text obj is not table"))?;
+            text_obj.borrow_mut().set(text_obj::CONTENT, raw_text.into_script_val());
+
+            // text 用于旁白：隐藏头像
+            c.borrow_mut()
+                .reg_val(FACE_PATH, ScriptValue::string(""));
+
+            // 使用 frame 作为显示主体，确保 paragraph 不遮挡
+            if let Some(paragraph) = c.borrow().get_val(PARAGRAPH).and_then(|v| v.as_table()) {
+                paragraph
+                    .borrow_mut()
+                    .set(var_paragraph::VISIBLE, ScriptValue::bool(false));
+            }
             Ok(c.borrow().get_val(_TEXT_OBJ).unwrap())
         });
     }
@@ -140,5 +234,5 @@ pub fn init_env(ctx: ContextRef) {
         })
     }
 
-    regist_base_gvar(&mut ctx);
+    ctx.reg_val(DISPLAY_NAME, ScriptValue::string(""));
 }

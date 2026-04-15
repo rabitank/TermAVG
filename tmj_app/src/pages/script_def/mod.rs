@@ -14,6 +14,12 @@ pub use var_character_ls::VCharacterLs;
 pub mod var_frame;
 pub use var_frame::VFrame;
 
+pub mod var_paragraph;
+pub use var_paragraph::VParagraph;
+
+pub mod var_layer;
+pub use var_layer::VLayer;
+
 
 pub trait BaseVariable: TypeName {
     fn regist_to_ctx_impl(ctx: &mut ScriptContext) -> anyhow::Result<()>;

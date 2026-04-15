@@ -1,18 +1,19 @@
 use anyhow::{Context, Ok, Result};
 use ratatui::Frame;
-use tmj_core::pathes;
 use std::cell::RefCell;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::time::Duration;
 use tmj_core::audio::TrackConfig;
 use tmj_core::command::CmdBuffer;
+use tmj_core::pathes;
 use tmj_core::{
     command::GameCmd,
     event::{GameEvent, handler::EventDispatcher, sender::EventSender},
 };
 use tracing::info;
 
-use crate::SETTING;
+use crate::{SETTING, utils};
 use crate::art::theme;
 use crate::audio::AUDIOM;
 use crate::audio::Tracks;
@@ -36,6 +37,7 @@ impl Game {
             .go_screen(&UserScreen::Main.to_string())
             .inspect_err(|e| eprintln!("Game Main Sceen Set Failded! Game Init Failed!: {e}"));
 
+        // 初始化音频轨道
         AUDIOM.with_borrow_mut(|a| {
             a.create_track(
                 Tracks::Bgm,
@@ -63,6 +65,17 @@ impl Game {
         let output = std::fs::File::create(pathes::path("script_env.txt")).unwrap();
         for info in consts {
             writeln!(&output, "{}::{}", info.module, info.value).unwrap();
+        }
+
+        // 预处理脚本
+        for origin_script in &SETTING.preprogress_script {
+            let o_path = pathes::path(origin_script);
+            let t_path = PathBuf::from("resource")
+                .join(PathBuf::from(o_path.file_name().unwrap()).with_extension("fss"));
+            match utils::preparse_script(&o_path, &t_path, None) {
+                Err(e) => tracing::error!("{:?}", e),
+                _ => {},
+            };
         }
 
         Game {

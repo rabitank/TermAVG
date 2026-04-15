@@ -259,6 +259,49 @@ impl Table {
     pub fn int_iter(&self) -> impl Iterator<Item = (&i64, &ScriptValue)> {
         self.int_keys.iter()
     }
+
+    /// 将 `other` 的键值合并到 `self`。
+    ///
+    /// 读档场景下 `ScriptValue::Function/RustObject` 会在序列化时退化为 `Nil`，
+    /// 为避免把运行时注入的内置方法覆盖掉，这里采用：
+    /// - `other` 为非 Nil：总是覆盖写入
+    /// - `other` 为 Nil：仅当 `self` 对应键是 Function/RustObject 时跳过
+    pub fn merge_from(&mut self, other: &Table) {
+        // string keys
+        for (k, v_other) in other.string_keys.iter() {
+            let should_write = if v_other.is_nil() {
+                match self.string_keys.get(k) {
+                    None => true,
+                    Some(v_self) => !(v_self.is_function() || v_self.is_rust_object()),
+                }
+            } else {
+                true
+            };
+            if should_write {
+                self.string_keys.insert(k.clone(), v_other.clone());
+            }
+        }
+
+        // int keys
+        for (k, v_other) in other.int_keys.iter() {
+            let should_write = if v_other.is_nil() {
+                match self.int_keys.get(k) {
+                    None => true,
+                    Some(v_self) => !(v_self.is_function() || v_self.is_rust_object()),
+                }
+            } else {
+                true
+            };
+            if should_write {
+                self.int_keys.insert(*k, v_other.clone());
+            }
+        }
+
+        // type tag: keep existing unless missing
+        if self.type_tag.is_none() {
+            self.type_tag = other.type_tag.clone();
+        }
+    }
 }
 
 impl Default for Table {
