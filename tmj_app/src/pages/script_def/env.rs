@@ -3,7 +3,7 @@ use std::time::Duration;
 use tmj_core::{
     audio::{AudioOp, FadeCurve},
     pathes,
-    script::{ContextRef, IntoScriptValue, ScriptContext, ScriptValue, lower_str},
+    script::{ContextRef, Interpreter, IntoScriptValue, ScriptContext, ScriptValue, lower_str},
 };
 
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
     audio::{self, AUDIOM, Tracks, load_audio},
     pages::script_def::{
         BaseVariable, Character, TextObj, VCharacterLs, VFrame, VLayer, VParagraph, text_obj,
-        var_layer, var_paragraph,
+        var_frame, var_layer, var_paragraph,
     },
 };
 
@@ -34,7 +34,6 @@ pub use super::var_character_ls::CHARACTER_LS;
 pub use super::var_frame::FRAME;
 pub use super::var_layer::LAYERS;
 pub use super::var_paragraph::PARAGRAPH;
-
 
 // global function
 lower_str!(BGM);
@@ -96,13 +95,17 @@ pub fn init_env(ctx: ContextRef) {
 
             let layer_type = args[0]
                 .as_str()
-                .ok_or(anyhow::anyhow!("add_layer arg0 should be layer type string"))?
+                .ok_or(anyhow::anyhow!(
+                    "add_layer arg0 should be layer type string"
+                ))?
                 .to_string();
 
             let (name, source) = if args.len() >= 3 {
                 let name = args[1]
                     .as_str()
-                    .ok_or(anyhow::anyhow!("add_layer arg1 should be layer name string"))?
+                    .ok_or(anyhow::anyhow!(
+                        "add_layer arg1 should be layer name string"
+                    ))?
                     .to_string();
                 let source = args[2]
                     .as_str()
@@ -133,9 +136,10 @@ pub fn init_env(ctx: ContextRef) {
             layer_item.set(var_layer::LAYER_TYPE, ScriptValue::string(layer_type));
             layer_item.set(var_layer::SOURCE, ScriptValue::string(source));
             layer_item.set(var_layer::VISIBLE, ScriptValue::bool(true));
-            layers
-                .borrow_mut()
-                .set(name, ScriptValue::Table(std::rc::Rc::new(std::cell::RefCell::new(layer_item))));
+            layers.borrow_mut().set(
+                name,
+                ScriptValue::Table(std::rc::Rc::new(std::cell::RefCell::new(layer_item))),
+            );
 
             Ok(ScriptValue::Table(layers))
         });
@@ -164,17 +168,25 @@ pub fn init_env(ctx: ContextRef) {
                 .first()
                 .and_then(|x| x.as_str())
                 .ok_or(anyhow::anyhow!("text requires content string"))?;
-            let text_obj = c
-                .borrow()
-                .get_val(_TEXT_OBJ)
-                .ok_or(anyhow::anyhow!("no text obj"))?
-                .as_table()
-                .ok_or(anyhow::anyhow!("text obj is not table"))?;
-            text_obj.borrow_mut().set(text_obj::CONTENT, raw_text.into_script_val());
 
-            // text 用于旁白：隐藏头像
-            c.borrow_mut()
-                .reg_val(FACE_PATH, ScriptValue::string(""));
+            Interpreter::eval(
+                vec![
+                // 设置这一回的文本
+                tmj_core::script::Command::Once {
+                    path: format!("{FRAME}.{:}", var_frame::CONTENT),
+                    args: vec![ScriptValue::string(raw_text)],
+                },
+                // text 用于旁白：隐藏头像
+                tmj_core::script::Command::Once {
+                    path: FACE_PATH.to_string(),
+                    args: vec![ScriptValue::string("")],
+                },
+                ],
+                
+                c.clone(),
+            )
+            .map_err(|e| anyhow::anyhow!(e))?;
+
 
             // 使用 frame 作为显示主体，确保 paragraph 不遮挡
             if let Some(paragraph) = c.borrow().get_val(PARAGRAPH).and_then(|v| v.as_table()) {

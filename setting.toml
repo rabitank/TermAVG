@@ -1,10 +1,10 @@
 resolution = [240, 80]
 is_force_skipable = false
 save_dir = "save"
-entre_script = "resource/script.fss"
-default_bg_img = "resource/default_background_img.png"
+entre_script = "resource/script_example.fss"
+default_bg_img = "resource/bg_0.png"
 default_face_img = "resource/default_face_img.png"
-preprogress_script = ["script.fs"]
+preprogress_script = ["resource/script_example.fs"]
 
 [layout]
 character_up_edge = 12

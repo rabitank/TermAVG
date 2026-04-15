@@ -42,7 +42,6 @@ impl PipeStage for DialogueFrameStage {
 
         let mut vars = Self::get_script_vars(ctx);
         let frame = vars.pop().unwrap()?.as_table().unwrap();
-        let text_obj = vars.pop().unwrap()?.as_table().unwrap();
 
         let frame_show = frame
             .borrow()
@@ -53,12 +52,14 @@ impl PipeStage for DialogueFrameStage {
             return Ok(buffer);
         }
 
-        let text = text_obj
+        let text = frame
             .borrow()
-            .get(text_obj::CONTENT)
+            .get(var_frame::CONTENT)
             .and_then(|x| x.as_str().map(|s| s.to_string()))
             .unwrap_or_default();
+        tracing::info!("frame target {text}");
         let rendered = typewriter_render_text(&frame, &text, screen.last_tick_secs, true, 40.0);
+        tracing::info!("frame current {rendered}");
         let text_par = Paragraph::new(rendered);
         let text_rect = Rect {
             x: SETTING.layout.text_lt.0 + area.x,

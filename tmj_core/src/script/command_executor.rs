@@ -211,7 +211,7 @@ impl CommandExecutor {
                     ctx.parse_args(args)
                 };
 
-                match context.borrow().resolve_path(path) {
+                match {context.borrow().resolve_path(path)} {
                     Ok(ScriptValue::Function(func)) => match func.call(&context, args.clone()) {
                         Ok(_) => ExecuteStatus::Completed,
                         Err(e) => ExecuteStatus::Error(e.to_string()),

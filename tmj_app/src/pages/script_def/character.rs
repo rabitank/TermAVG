@@ -8,7 +8,7 @@ use tmj_core::{
     },
 };
 
-use crate::pages::script_def::env;
+use crate::pages::script_def::{env, var_frame};
 
 lower_str!(CHARACTER);
 /// 创建新的 Character Table
@@ -98,17 +98,36 @@ impl RegistableType for Character {
                         anyhow::bail!("say requires text argument".to_string());
                     }
                     let _text = args[0].as_str().unwrap_or("");
+                    tracing::info!(
+                        "{:?} is saying {}",
+                        table_clone
+                            .borrow()
+                            .get(DISPLAY)
+                            .as_ref()
+                            .unwrap()
+                            .as_str()
+                            .unwrap(),
+                        _text
+                    );
 
                     Interpreter::eval(
-                        vec![Command::Once {
-                            path: env::DISPLAY_NAME.to_string(),
-                            args: vec![
-                                table_clone
-                                    .borrow()
-                                    .get(DISPLAY)
-                                    .unwrap_or(ScriptValue::String("error_c_name".to_string())),
-                            ],
-                        }],
+                        vec![
+                            Command::Once {
+                                path: env::DISPLAY_NAME.to_string(),
+                                args: vec![
+                                    table_clone
+                                        .borrow()
+                                        .get(DISPLAY)
+                                        .unwrap_or(ScriptValue::String("error_c_name".to_string())),
+                                ],
+                            },
+                            Command::Once {
+                                path: format!("{:}.{:}", env::FRAME, var_frame::CONTENT),
+                                args: vec![
+                                    ScriptValue::string(_text)
+                                ],
+                            },
+                        ],
                         ctx.clone(),
                     )
                     .map_err(|e| anyhow::anyhow!(e))?;

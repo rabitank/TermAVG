@@ -1,11 +1,11 @@
 use std::{cell::RefCell, rc::Rc};
 
-use tmj_core::script::{ScriptValue, Table};
+use tmj_core::script::{ScriptValue, Table, lower_str};
 
-const TYPEWRITER_ENABLE: &str = "typewriter_enable";
-const TYPEWRITER_SPEED: &str = "typewriter_speed";
-const TYPEWRITER_PROGRESS: &str = "typewriter_progress";
-const TYPEWRITER_LAST_CONTENT: &str = "_typewriter_last_content";
+lower_str!(TYPEWRITER_ENABLE);
+lower_str!(TYPEWRITER_SPEED);
+lower_str!(TYPEWRITER_PROGRESS);
+lower_str!(TYPEWRITER_LAST_CONTENT);
 
 pub fn typewriter_render_text(
     state_table: &Rc<RefCell<Table>>,
