@@ -73,13 +73,11 @@ cargo build
 
 ### 运行
 
-```bash
-cargo run
-```
-建议使用,否则会出现debug模式下日志打印和游戏界面冲突
+建议使用
 ```bash
 cargo run 2> debug.txt
 ```
+否则会出现debug模式下日志打印和游戏界面冲突
 
 首次运行时如果没有 `setting.toml`，程序会按默认配置自动创建。
 
@@ -124,17 +122,9 @@ default_face_img = "resource/default_face_img.png"
 
 ### 最小示例
 
-可以先在 `resource/script.fs` 中写入类似内容进行测试：
+<a href="https://github.com/rabitank/TermAVG/blob/main/resource/script_example.fs">查看示例脚本</a>
 
-```txt
-#1
-title = "TermAVG Demo"
-wait 0.5
-wait click
-
-#2
-wait 0.2
-```
+另外,运行后将生成`script_env.txt`文件打印所有脚本环境可用的对象和方法,可以辅助调试和写脚本.
 
 ## 开发说明
 
@@ -151,8 +141,7 @@ wait 0.2
 
 ## 贡献
 
-目前添加功能,完善示例中,欢迎提交 Issue 和 PR：
-- 功能建议：请描述使用场景和预期行为
+目前添加功能,完善示例中,欢迎提交 Issue 和 PR
 
 <!-- links -->
 [contributors-shield]: https://img.shields.io/github/contributors/rabitank/TermAVG.svg?style=flat-square
