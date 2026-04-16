@@ -113,7 +113,7 @@ impl RegistableType for Character {
                     Interpreter::eval(
                         vec![
                             Command::Once {
-                                path: env::DISPLAY_NAME.to_string(),
+                                path: format!("{:}.{:}", env::FRAME, var_frame::SPEAKER),
                                 args: vec![
                                     table_clone
                                         .borrow()

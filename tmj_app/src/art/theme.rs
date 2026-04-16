@@ -35,6 +35,7 @@ pub struct Dialogue {
     pub header: Style,
     pub header_value: Style,
     pub block: Style,
+    pub name: Style,
 }
 
 pub struct Load {
@@ -83,6 +84,7 @@ pub const THEME: Theme = Theme {
         description: Style::new().fg(DARK_GRAY).bg(BLACK),
     },
     dialouge: Dialogue {
+        name: Style::new().fg(WHITE).bg(BLACK),
         tabs: Style::new().fg(MID_GRAY).bg(DARK_BLUE),
         tabs_selected: Style::new()
             .fg(WHITE)

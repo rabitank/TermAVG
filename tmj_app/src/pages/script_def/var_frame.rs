@@ -8,10 +8,16 @@ lower_str!(FRAME);
 lower_str!(VISIBLE);
 lower_str!(MODE);
 lower_str!(CONTENT);
+lower_str!(SPEAKER);
 lower_str!(TYPEWRITER_ENABLE);
 lower_str!(TYPEWRITER_SPEED);
 lower_str!(TYPEWRITER_PROGRESS);
 lower_str!(TYPEWRITER_LAST_CONTENT);
+
+// methods
+lower_str!(SHOW);
+lower_str!(HIDE);
+lower_str!(SET_MODE);
 
 #[derive(TypeName)]
 pub struct VFrame;
@@ -22,6 +28,7 @@ impl BaseVariable for VFrame {
         let _ = ctx.set_table_member(FRAME, VISIBLE, ScriptValue::bool(true));
         let _ = ctx.set_table_member(FRAME, MODE, ScriptValue::string("normal"));
         let _ = ctx.set_table_member(FRAME, CONTENT, ScriptValue::string(""));
+        let _ = ctx.set_table_member(FRAME, SPEAKER, ScriptValue::string(""));
         let _ = ctx.set_table_member(FRAME, TYPEWRITER_ENABLE, ScriptValue::bool(true));
         let _ = ctx.set_table_member(FRAME, TYPEWRITER_SPEED, ScriptValue::float(40.0));
         let _ = ctx.set_table_member(FRAME, TYPEWRITER_PROGRESS, ScriptValue::float(0.0));
@@ -29,7 +36,7 @@ impl BaseVariable for VFrame {
 
         {
             let _ = ctx
-                .set_table_func(FRAME, "show", |ctx, _args| {
+                .set_table_func(FRAME, SHOW, |ctx, _args| {
                     let frame = ctx
                         .borrow()
                         .get_val(FRAME)
@@ -44,7 +51,7 @@ impl BaseVariable for VFrame {
 
         {
             let _ = ctx
-                .set_table_func(FRAME, "hide", |ctx, _args| {
+                .set_table_func(FRAME, HIDE, |ctx, _args| {
                     let frame = ctx
                         .borrow()
                         .get_val(FRAME)
@@ -59,7 +66,7 @@ impl BaseVariable for VFrame {
 
         {
             let _ = ctx
-                .set_table_func(FRAME, "set_mode", |ctx, args| {
+                .set_table_func(FRAME, SET_MODE, |ctx, args| {
                     let mode = args
                         .first()
                         .and_then(|x| x.as_str())
@@ -78,5 +85,3 @@ impl BaseVariable for VFrame {
         Ok(())
     }
 }
-
-

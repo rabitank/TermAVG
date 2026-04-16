@@ -1,12 +1,11 @@
 use ratatui::{
-    layout::{Constraint, Layout, Offset},
     widgets::Widget,
 };
 use tmj_core::{img::shape::Pic, script::TypeName};
 
 use crate::{
-    SETTING,
-    pages::{pipeline::PipeStage, script_def::env::FACE_PATH},
+    pages::{pipeline::PipeStage, script_def::{env::FACE_PATH, var_frame}},
+    setting,
 };
 
 #[derive(TypeName)]
@@ -14,7 +13,7 @@ pub struct FaceStage;
 
 impl PipeStage for FaceStage {
     fn binding_vars() -> &'static [&'static str] {
-        &[FACE_PATH]
+        &[FACE_PATH, var_frame::FRAME]
     }
 
     fn draw<'a>(
@@ -26,8 +25,19 @@ impl PipeStage for FaceStage {
         if screen.hide_dialouge {
             return Ok(buffer);
         }
+        let mut vars = Self::get_script_vars(ctx);
+        let frame = vars.pop().unwrap()?.as_table().unwrap();
 
-        let binding = Self::get_script_vars(ctx).pop().unwrap()?;
+        let frame_show = frame
+            .borrow()
+            .get(var_frame::VISIBLE)
+            .and_then(|x| x.as_bool())
+            .unwrap_or(true);
+        if !frame_show {
+            return Ok(buffer);
+        }
+
+        let binding = vars.pop().unwrap()?;
         let img_path = binding
             .as_str()
             .ok_or(anyhow::anyhow!("{FACE_PATH} should be str"))?;
@@ -35,22 +45,7 @@ impl PipeStage for FaceStage {
             return Ok(buffer);
         }
         let face = Pic::from(img_path)?;
-        let face_rect = Layout::vertical([
-            Constraint::Length(SETTING.layout.df_size.1 as u16),
-            Constraint::Fill(1),
-        ])
-        .split(area)[0];
-        let face_rect = Layout::horizontal([
-            Constraint::Length(SETTING.layout.df_size.0),
-            Constraint::Fill(1),
-        ])
-        .split(face_rect)[0];
-
-        let face_rect = face_rect.offset(Offset::new(
-            SETTING.layout.df_lt.0 as i32,
-            SETTING.layout.df_lt.1 as i32,
-        ));
-        let face_rect = face_rect.clamp(area);
+        let face_rect = setting::Layout::ltwh2rect(area, &setting::SETTING.layout.frame_face_ltwh);
         face.render(face_rect, buffer);
         Ok(buffer)
     }

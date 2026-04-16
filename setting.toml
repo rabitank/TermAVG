@@ -8,13 +8,12 @@ preprogress_script = ["resource/script_example.fs"]
 
 [layout]
 character_up_edge = 12
-character_size = [56, 56]
-df_size = [40, 20]
-df_lt = [16, 56]
-dark_edge = 6
+character_twh = [8, 56, 64] # 16, 56 ,128
+vertical_dark_edge = 8 # 12
 two_character_spec = 48
 x_character_spec = 16
-dtf_lr_edge = 32
-dtf_height = 16
-text_lt = [64, 64]
-text_size = [136, 14]
+frame_face_ltwh = [16, 58, 44, 22] # 16, 112, 48 48
+frame_name_ltwh = [60, 58, 10, 1]
+frame_content_ltwh = [60, 59, 144, 20]
+text_ltwh = [61,60,140, 19]
+short_key_ltwh = [60, 79, 144, 1]

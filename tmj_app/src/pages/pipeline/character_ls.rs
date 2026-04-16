@@ -53,15 +53,15 @@ impl PipeStage for CharactersStage {
 
         for (idx, (ls_id, c)) in characters.iter().enumerate() {
             let x_offset = (idx as f32 - (character_num as f32).div(2_f32))
-                .mul(spec as f32 + SETTING.layout.character_size.0 as f32)
+                .mul(spec as f32 + SETTING.layout.character_twh.1 as f32)
                 + spec.div(2) as f32;
             let x = (SETTING.resolution.0 as f32).div(2_f32) + x_offset + area.x as f32;
             let y = SETTING.layout.character_up_edge as u16 + area.y; 
             let c_rect = Rect {
                 x: x.floor() as u16,
                 y: y,
-                width: SETTING.layout.character_size.0 as u16,
-                height: SETTING.layout.character_size.1 as u16,
+                width: SETTING.layout.character_twh.1 as u16,
+                height: SETTING.layout.character_twh.2 as u16,
             };
             let c_rect = c_rect.clamp(area);
             let c = c.as_table().ok_or(anyhow::anyhow!(
