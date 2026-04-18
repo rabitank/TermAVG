@@ -24,7 +24,7 @@ pub struct VFrame;
 
 impl BaseVariable for VFrame {
     fn regist_to_ctx_impl(ctx: &mut tmj_core::script::ScriptContext) -> anyhow::Result<()> {
-        ctx.reg_table(FRAME);
+        ctx.set_global_table(FRAME);
         let _ = ctx.set_table_member(FRAME, VISIBLE, ScriptValue::bool(true));
         let _ = ctx.set_table_member(FRAME, MODE, ScriptValue::string("normal"));
         let _ = ctx.set_table_member(FRAME, CONTENT, ScriptValue::string(""));
@@ -39,7 +39,7 @@ impl BaseVariable for VFrame {
                 .set_table_func(FRAME, SHOW, |ctx, _args| {
                     let frame = ctx
                         .borrow()
-                        .get_val(FRAME)
+                        .get_global_val(FRAME)
                         .ok_or(anyhow::anyhow!("frame not found"))?
                         .as_table()
                         .ok_or(anyhow::anyhow!("frame is not table"))?;
@@ -54,7 +54,7 @@ impl BaseVariable for VFrame {
                 .set_table_func(FRAME, HIDE, |ctx, _args| {
                     let frame = ctx
                         .borrow()
-                        .get_val(FRAME)
+                        .get_global_val(FRAME)
                         .ok_or(anyhow::anyhow!("frame not found"))?
                         .as_table()
                         .ok_or(anyhow::anyhow!("frame is not table"))?;
@@ -73,7 +73,7 @@ impl BaseVariable for VFrame {
                         .ok_or(anyhow::anyhow!("frame.set_mode requires mode string"))?;
                     let frame = ctx
                         .borrow()
-                        .get_val(FRAME)
+                        .get_global_val(FRAME)
                         .ok_or(anyhow::anyhow!("frame not found"))?
                         .as_table()
                         .ok_or(anyhow::anyhow!("frame is not table"))?;

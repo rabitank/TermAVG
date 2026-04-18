@@ -20,6 +20,7 @@ mod value_convert;
 
 // 核心类型
 pub use value::ScriptValue;
+pub use table::TabelGet;
 pub use table::Table;
 pub use table::TableRef;
 pub use function::ScriptFunction;

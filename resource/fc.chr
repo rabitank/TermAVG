@@ -1,9 +1,21 @@
-_current_face = "happy"
-display = "女主角"
+_current_face = "normal"
+display = "FFCC"
 
-[face]
+[faces]
+happy = "resource/fc_f_happy.png"
+sad = "resource/fc_f_sad.png"
+normal = "resource/fc_f_normal.png"
+oops = "resource/fc_f_oops.png"
+smile = "resource/fc_f_smile.png"
+cry = "resource/fc_f_cry.png"
+
+[stands]
 happy = "resource/fc_happy.png"
 sad = "resource/fc_sad.png"
 normal = "resource/fc_normal.png"
+oops = "resource/fc_oops.png"
+smile = "resource/fc_smile.png"
+cry = "resource/fc_cry.png"
+
 
 [voice]

@@ -47,7 +47,7 @@ impl SessionExecutor {
                 SessionStatus::Completed
             }
             QueueStatus::Error(e) => {
-                info!("SessionExecutor: session {} error: {}", self.session_id, e);
+                tracing::error!("SessionExecutor: session {} error: {}", self.session_id, e);
                 self.is_completed = true;
                 SessionStatus::Error(e)
             }

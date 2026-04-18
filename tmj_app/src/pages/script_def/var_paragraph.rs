@@ -15,7 +15,7 @@ pub struct VParagraph;
 
 impl BaseVariable for VParagraph {
     fn regist_to_ctx_impl(ctx: &mut tmj_core::script::ScriptContext) -> anyhow::Result<()> {
-        ctx.reg_table(PARAGRAPH);
+        ctx.set_global_table(PARAGRAPH);
         let _ = ctx.set_table_member(PARAGRAPH, VISIBLE, ScriptValue::bool(false));
         let _ = ctx.set_table_member(PARAGRAPH, CONTENT, ScriptValue::string(""));
         let _ = ctx.set_table_member(PARAGRAPH, TYPEWRITER_ENABLE, ScriptValue::bool(true));
@@ -28,7 +28,7 @@ impl BaseVariable for VParagraph {
                 .set_table_func(PARAGRAPH, "show", |ctx, _args| {
                     let paragraph = ctx
                         .borrow()
-                        .get_val(PARAGRAPH)
+                        .get_global_val(PARAGRAPH)
                         .ok_or(anyhow::anyhow!("paragraph not found"))?
                         .as_table()
                         .ok_or(anyhow::anyhow!("paragraph is not table"))?;
@@ -43,7 +43,7 @@ impl BaseVariable for VParagraph {
                 .set_table_func(PARAGRAPH, "hide", |ctx, _args| {
                     let paragraph = ctx
                         .borrow()
-                        .get_val(PARAGRAPH)
+                        .get_global_val(PARAGRAPH)
                         .ok_or(anyhow::anyhow!("paragraph not found"))?
                         .as_table()
                         .ok_or(anyhow::anyhow!("paragraph is not table"))?;
@@ -62,7 +62,7 @@ impl BaseVariable for VParagraph {
                         .ok_or(anyhow::anyhow!("paragraph.print requires text argument"))?;
                     let paragraph = ctx
                         .borrow()
-                        .get_val(PARAGRAPH)
+                        .get_global_val(PARAGRAPH)
                         .ok_or(anyhow::anyhow!("paragraph not found"))?
                         .as_table()
                         .ok_or(anyhow::anyhow!("paragraph is not table"))?;
@@ -78,7 +78,7 @@ impl BaseVariable for VParagraph {
                 .set_table_func(PARAGRAPH, "clear", |ctx, _args| {
                     let paragraph = ctx
                         .borrow()
-                        .get_val(PARAGRAPH)
+                        .get_global_val(PARAGRAPH)
                         .ok_or(anyhow::anyhow!("paragraph not found"))?
                         .as_table()
                         .ok_or(anyhow::anyhow!("paragraph is not table"))?;

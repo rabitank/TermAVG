@@ -184,6 +184,21 @@ impl AudioTrack {
         self.op_queue.push_back(op);
     }
 
+    pub fn fade_out(&mut self, duration: Duration) -> &mut Self{
+        self.op_queue.push_back(AudioOp::fade_out(duration));
+        self
+    }
+
+    pub fn fade_in(&mut self, source: AudioSource, duration: Duration) -> &mut Self{
+        self.op_queue.push_back(AudioOp::fade_in(source, duration));
+        self
+    }
+
+    pub fn wait(&mut self, duration: Duration) -> &mut Self{
+        self.op_queue.push_back(AudioOp::wait(duration));
+        self
+    }
+
     pub fn stop(&mut self) {
         for sink in &self.sinks {
             sink.sink.stop();

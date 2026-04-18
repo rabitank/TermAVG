@@ -56,10 +56,27 @@ impl ScriptContext {
     }
 
     pub fn get_val(&self, name: &str) -> Option<ScriptValue> {
-        self.globals.get(name).cloned()
+        let res = self
+            .resolve_path(name)
+            .map_err(|e| anyhow::anyhow!(e))
+            .context("parse expression arg filed {i} -> parse as string")
+            .unwrap_or_else(|e| {
+                tracing::error!("get {} failed!: {:?}", name, e);
+                ScriptValue::Nil
+            });
+        Some(res)
     }
 
-    pub fn reg_val(&mut self, name: impl Into<String>, value: ScriptValue) {
+    pub fn get_global_val(&self, name: &str) -> Option<ScriptValue> {
+        let res = self.globals.get(name).cloned();
+        if res.is_none() {
+            tracing::error!("global val: {name} ~ got failed");
+            return None;
+        }
+        res
+    }
+
+    pub fn set_global_val(&mut self, name: impl Into<String>, value: ScriptValue) {
         let name = name.into();
         info!("Context: set_global {} = {:?}", name, value);
         self.globals.insert(name, value);
@@ -73,7 +90,7 @@ impl ScriptContext {
         self.globals.contains_key(name)
     }
 
-    pub fn reg_func<F>(&mut self, name: impl Into<String>, func: F)
+    pub fn set_global_func<F>(&mut self, name: impl Into<String>, func: F)
     where
         F: FnSignature,
     {
@@ -84,13 +101,17 @@ impl ScriptContext {
             .insert(name, ScriptValue::Function(Rc::new(func)));
     }
 
-    pub fn reg_robj(&mut self, name: impl Into<String>, obj: impl RustObjectTrait + 'static) {
+    pub fn set_global_robj(
+        &mut self,
+        name: impl Into<String>,
+        obj: impl RustObjectTrait + 'static,
+    ) {
         let name = name.into();
         info!("Context: register_global_object {}", name);
         self.globals.insert(name, ScriptValue::rust_object(obj));
     }
 
-    pub fn reg_table(&mut self, name: impl Into<String>) {
+    pub fn set_global_table(&mut self, name: impl Into<String>) {
         let name = name.into();
         info!("Context: register_global_table {}", name);
         self.globals.insert(name, ScriptValue::table());
@@ -150,7 +171,7 @@ impl ScriptContext {
         }
 
         let mut current = self
-            .get_val(parts[0])
+            .get_global_val(parts[0])
             .ok_or_else(|| format!("Global '{}' not found", parts[0]))?;
 
         for &part in &parts[1..] {
@@ -366,7 +387,7 @@ impl SerializableContext {
                     match build_res {
                         Ok(ins) => {
                             // typed table 通常不是内置变量；直接覆盖写入即可
-                            ctx.borrow_mut().reg_val(name, ins);
+                            ctx.borrow_mut().set_global_val(name, ins);
                         }
                         Err(s) => {
                             tracing::error!(s);
@@ -374,25 +395,26 @@ impl SerializableContext {
                     }
                 } else {
                     // untyped table：优先与已存在内置 table 合并
-                    if let Some(existing) = ctx.borrow().get_val(name) {
+                    if let Some(existing) = ctx.borrow().get_global_val(name) {
                         if let Some(dst) = existing.as_table() {
                             let src_b = table_rc.borrow();
                             dst.borrow_mut().merge_from(&src_b);
                             continue;
                         }
                     }
-                    ctx.borrow_mut().reg_val(name, ScriptValue::Table(table_rc));
+                    ctx.borrow_mut()
+                        .set_global_val(name, ScriptValue::Table(table_rc));
                 }
             } else {
                 // 非 table 值：当存档值是 Nil 时，避免把运行时注册的全局函数/对象覆盖掉
                 if v.is_nil() {
-                    if let Some(existing) = ctx.borrow().get_val(name) {
+                    if let Some(existing) = ctx.borrow().get_global_val(name) {
                         if existing.is_function() || existing.is_rust_object() {
                             continue;
                         }
                     }
                 }
-                ctx.borrow_mut().reg_val(name, v);
+                ctx.borrow_mut().set_global_val(name, v);
             }
         }
         Ok(())

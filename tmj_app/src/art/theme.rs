@@ -35,6 +35,7 @@ pub struct Dialogue {
     pub header: Style,
     pub header_value: Style,
     pub block: Style,
+    pub black_edge: Style,
     pub name: Style,
 }
 
@@ -96,6 +97,7 @@ pub const THEME: Theme = Theme {
         header: Style::new().add_modifier(Modifier::BOLD),
         header_value: Style::new().fg(LIGHT_GRAY),
         block: Style::new().bg(DARK_BLUE).fg(LIGHT_GRAY),
+        black_edge: Style::new().bg(BLACK).fg(WHITE),
     },
     load: Load {
         header: Style::new()

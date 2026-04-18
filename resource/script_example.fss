@@ -1,9 +1,9 @@
 #1
+bgimg_path = "resource/bg_0.png"
+bgm.set "resource/bgm1.mp3"
 p1 = character "resource/fc.chr"
 p2 = character "resource/mc.chr"
-bgimg_path = "resource/bg_0.png"
 character_ls.set_characters p1 p2
-bgm "resource/bgm1.mp3"
 p1.say "我觉得我们得把那个 isDataReady 标志位改成 isReadyData，这样语义更自然"
 
 #2

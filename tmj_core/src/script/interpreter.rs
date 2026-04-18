@@ -1,8 +1,12 @@
 // src/script/interpreter.rs
-use std::{rc::Rc, cell::RefCell};
-use tracing::info;
-use crate::script::{Command, CommandExecutor, ScriptContext, WaitCondition, script_parsers::ScriptParser, session::{SessionExecutor, SessionStatus}};
 use crate::script::command_executor::InputEvent;
+use crate::script::{
+    Command, CommandExecutor, ScriptContext, WaitCondition,
+    script_parsers::ScriptParser,
+    session::{SessionExecutor, SessionStatus},
+};
+use std::{cell::RefCell, rc::Rc};
+use tracing::info;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum InterpreterStatus {
@@ -35,19 +39,41 @@ impl Interpreter {
     }
 
     // 可以考虑丰富返回内容，将等待的command executor往上提交之类的？
-    pub fn eval(commands: Vec<Command>, ctx: Rc<RefCell<ScriptContext>>) -> Result<(), String> {
-        for (pos, command ) in commands.into_iter().enumerate() {
-            let mut executor = CommandExecutor::new(command.clone());
-            match executor.step(&ctx) {
-                super::ExecuteStatus::Completed => {},
-                super::ExecuteStatus::Waiting(_wait_condition) => {
-                    return Err(format!("eval current dont suppor waitting command: {:?}\n line: {}", command, pos));
-                },
-                super::ExecuteStatus::Error(info) => {
-                    return Err(format!("eval failed!, reason: {}\n {:?}\n line: {}", info, command, pos));
-                }
+    pub fn eval(cmd_str: String, ctx: Rc<RefCell<ScriptContext>>) -> anyhow::Result<()> {
+        info!("eval {}", cmd_str);
+        let commands = match ScriptParser::parse_session(&cmd_str) {
+            Ok(s) => s,
+            Err(e) => {
+                info!("Parse error: {}", e.clone());
+                anyhow::bail!(e)
             }
         };
+        Interpreter::eval_cmds(commands, ctx).map_err(|e| anyhow::anyhow!(e))?;
+        Ok(())
+    }
+
+    pub fn eval_cmds(
+        commands: Vec<Command>,
+        ctx: Rc<RefCell<ScriptContext>>,
+    ) -> Result<(), String> {
+        for (pos, command) in commands.into_iter().enumerate() {
+            let mut executor = CommandExecutor::new(command.clone());
+            match executor.step(&ctx) {
+                super::ExecuteStatus::Completed => {}
+                super::ExecuteStatus::Waiting(_wait_condition) => {
+                    return Err(format!(
+                        "eval current dont suppor waitting command: {:?}\n line: {}",
+                        command, pos
+                    ));
+                }
+                super::ExecuteStatus::Error(info) => {
+                    return Err(format!(
+                        "eval failed!, reason: {}\n {:?}\n line: {}",
+                        info, command, pos
+                    ));
+                }
+            }
+        }
         Ok(())
     }
 
@@ -69,7 +95,9 @@ impl Interpreter {
     }
 
     pub fn has_active_session(&self) -> bool {
-        self.current_session.as_ref().map_or(false, |s| !s.is_completed())
+        self.current_session
+            .as_ref()
+            .map_or(false, |s| !s.is_completed())
     }
 
     pub fn is_waiting(&self) -> bool {
@@ -85,11 +113,17 @@ impl Interpreter {
 
     /// 开始新 session
     pub fn start_session(&mut self, commands: Vec<Command>) {
-        info!("Interpreter: start_session with {} commands", commands.len());
+        info!(
+            "Interpreter: start_session with {} commands",
+            commands.len()
+        );
 
         if let Some(ref session) = self.current_session {
             if !session.is_completed() {
-                info!("Interpreter: forcing end of previous session {}", session.session_id);
+                info!(
+                    "Interpreter: forcing end of previous session {}",
+                    session.session_id
+                );
                 self.end_session_internal();
             }
         }
@@ -145,7 +179,6 @@ impl Interpreter {
         } else {
             self.status.clone()
         }
-
     }
 
     /// 处理输入事件 (有事件时调用)
@@ -197,7 +230,9 @@ impl Interpreter {
     }
 
     pub fn min_remaining_time(&self) -> Option<f64> {
-        self.current_session.as_ref().and_then(|s| s.min_remaining_time())
+        self.current_session
+            .as_ref()
+            .and_then(|s| s.min_remaining_time())
     }
 }
 

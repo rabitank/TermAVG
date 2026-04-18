@@ -20,6 +20,18 @@ pub struct Table {
     type_tag: Option<String>,
 }
 
+pub trait TabelGet {
+    fn get(&self, member: impl ToString) -> anyhow::Result<ScriptValue>;
+}
+
+impl TabelGet for Rc<RefCell<Table>> {
+    fn get(&self, member: impl ToString) -> anyhow::Result<ScriptValue> {
+        self.borrow()
+            .get(&member.to_string())
+            .ok_or(anyhow::anyhow!("member {:} get failed", member.to_string()))
+    }
+}
+
 impl Table {
     /// 有的function里面持有table引用, 因此这里封装避免直接调用
     pub fn call_method(

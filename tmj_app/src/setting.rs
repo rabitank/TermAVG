@@ -47,7 +47,7 @@ impl Layout {
 
         let face_rect =
             face_rect.offset(ratatui::layout::Offset::new(ltwh.0 as i32, ltwh.1 as i32));
-        face_rect.clamp(area)
+        face_rect.intersection(area)
     }
 }
 
@@ -95,15 +95,15 @@ impl Default for Layout {
     fn default() -> Self {
         Self {
             character_up_edge: 24.div(2) as usize,
-            character_twh: (8, 56, 64),        // 16, 56 ,128
-            frame_face_ltwh: (16, 56, 48, 24), // 16, 112, 48 48
-            vertical_dark_edge: 8,             // 12
+            character_twh: (8, 80, 56), // 16, 56 ,128
+            vertical_dark_edge: 8,      // 12
             two_character_spec: 48,
             x_character_spec: 16,
-            frame_name_ltwh: (65, 56, 10, 4),
-            frame_content_ltwh: (64, 59, 144, 20),
-            text_ltwh: (65, 60, 140, 19),
-            short_key_ltwh: (64, 79, 144, 1),
+            frame_face_ltwh: (20, 60, 41, 22), // 16, 112, 48 48
+            frame_name_ltwh: (60, 62, 10, 1),
+            frame_content_ltwh: (60, 63, 144, 16),
+            text_ltwh: (61, 64, 140, 15),
+            short_key_ltwh: (60, 79, 144, 1),
         }
     }
 }

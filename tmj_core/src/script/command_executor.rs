@@ -141,7 +141,8 @@ impl CommandExecutor {
         match &self.command {
             Command::Assignment { name, value } => {
                 let mut ctx = context.borrow_mut();
-                ctx.reg_val(name, value.clone());
+                ctx.set_global_val(name, value.clone());
+
                 ExecuteStatus::Completed
             }
             Command::CommandAssignment {
@@ -163,7 +164,7 @@ impl CommandExecutor {
                         )
                     } {
                         Ok(val) => {
-                            context.borrow_mut().reg_val(name, val);
+                            context.borrow_mut().set_global_val(name, val);
                             ExecuteStatus::Completed
                         }
                         Err(s) => ExecuteStatus::Error(format!(
@@ -179,7 +180,7 @@ impl CommandExecutor {
                         Ok(return_value) => {
                             // 2. 将返回值赋给变量
                             let mut ctx = context.borrow_mut();
-                            ctx.reg_val(name, return_value);
+                            ctx.set_global_val(name, return_value);
                             ExecuteStatus::Completed
                         }
                         Err(e) => ExecuteStatus::Error(e.to_string()),
@@ -259,7 +260,7 @@ impl CommandExecutor {
             Err(_) => {
                 // 路径不存在，可能是全局方法
                 // 尝试从 globals 直接查找
-                if let Some(func) = context.borrow().get_val(command) {
+                if let Some(func) = context.borrow().get_global_val(command) {
                     if let ScriptValue::Function(f) = func {
                         return f.call(&context, args.to_vec());
                     }
@@ -280,7 +281,7 @@ impl CommandExecutor {
         let parts: Vec<&str> = path.split('.').collect();
 
         if parts.len() == 1 {
-            let old_value = ctx.get_val(path).unwrap_or(ScriptValue::nil());
+            let old_value = ctx.get_global_val(path).unwrap_or(ScriptValue::nil());
 
             if args.is_empty() {
                 return ExecuteStatus::Error("set requires at least one argument".to_string());
@@ -294,13 +295,13 @@ impl CommandExecutor {
                 });
             }
 
-            ctx.reg_val(path, args[0].clone());
+            ctx.set_global_val(path, args[0].clone());
             ExecuteStatus::Completed
         } else {
             let obj_name = parts[0];
             let field_path = parts[1..].join(".");
 
-            let obj = match ctx.get_val(obj_name) {
+            let obj = match ctx.get_global_val(obj_name) {
                 Some(val) => val,
                 None => return ExecuteStatus::Error(format!("Global '{}' not found", obj_name)),
             };

@@ -15,7 +15,7 @@ lower_str!(SET_CHARACTERS);
 
 impl BaseVariable for VCharacterLs {
     fn regist_to_ctx_impl(ctx: &mut tmj_core::script::ScriptContext) -> anyhow::Result<()> {
-        ctx.reg_table(CHARACTER_LS);
+        ctx.set_global_table(CHARACTER_LS);
 
         // set characters
         {
@@ -23,7 +23,7 @@ impl BaseVariable for VCharacterLs {
                 .set_table_func(CHARACTER_LS, SET_CHARACTERS, |ctx, args| {
                     let c_ls = ctx
                         .borrow()
-                        .get_val(CHARACTER_LS)
+                        .get_global_val(CHARACTER_LS)
                         .unwrap()
                         .as_table()
                         .unwrap();

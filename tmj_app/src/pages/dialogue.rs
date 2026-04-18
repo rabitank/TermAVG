@@ -5,27 +5,28 @@ use ratatui::layout::{Constraint, Rect};
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::time::Duration;
 use tmj_core::command::{CmdBuffer, GameCmd};
+use tmj_core::event::handler::EventDispatcher;
 use tmj_core::pathes;
 use tmj_core::script::{
     ContextRef, Interpreter, InterpreterStatus, ScriptContext, ScriptParser, SerializableContext,
     TypeName,
 };
-use tmj_core::event::handler::EventDispatcher;
 use tracing::info;
 
-use crate::SETTING;
-use crate::audio::AUDIOM;
+use crate::audio::{AUDIOM, load_audio};
 use crate::pages::pipeline::{
     BackgrondStage, CharactersStage, DialogueFrameStage, FaceStage, LayersStage, ParagraphStage,
     PipeStage,
 };
+use crate::{SETTING, audio};
 
 use crate::pages::pop_items::CmdInputItem;
 use crate::pages::pop_items::PopItem;
+use crate::pages::script_def::var_bgm;
 use crate::pages::script_reader::{SectionReadResult, StreamSectionReader};
-use crate::pages::{Draw, Screen, UserScreen};
-
+use crate::pages::{Draw, Screen, ScreenActRespond, UserScreen};
 
 pub struct DialogueScene {
     frame: usize,
@@ -37,7 +38,51 @@ pub struct DialogueScene {
     #[cfg(debug_assertions)]
     cmd_input: Option<CmdInputItem>,
 }
-impl Screen for DialogueScene {}
+impl DialogueScene {
+    fn init_audio(&self) -> anyhow::Result<()> {
+        let bgm_path = format!("{}.{}", var_bgm::BGM, var_bgm::SOURCE);
+        let bgm_path = self
+            .get_interpreter()
+            .borrow()
+            .context()
+            .borrow()
+            .get_val(&bgm_path)
+            .unwrap();
+
+        AUDIOM.with_borrow_mut(|a| {
+            if bgm_path.is_string() && !bgm_path.as_string().unwrap().is_empty() {
+                let source = load_audio(bgm_path.as_string().unwrap())?;
+                a.track_mut(&audio::Tracks::Bgm)
+                    .unwrap()
+                    .fade_in(source, Duration::from_millis(100));
+            }
+            Ok(())
+        })
+    }
+
+    fn stop_audio(&self) -> anyhow::Result<()> {
+        AUDIOM.with_borrow_mut(|a| {
+            a.stop_all();
+            Ok(())
+        })
+    }
+}
+impl Screen for DialogueScene {
+    fn active(
+        &mut self,
+        _named_args: &crate::gameflow::NamedArgs,
+    ) -> anyhow::Result<super::ScreenActRespond> {
+        self.init_audio()?;
+        let resp = ScreenActRespond::default();
+        Ok(resp)
+    }
+
+    fn sleep(&mut self) -> anyhow::Result<super::ScreenActRespond> {
+        self.stop_audio()?;
+        let resp = ScreenActRespond::default();
+        Ok(resp)
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DialogueSceneSave {
@@ -68,7 +113,7 @@ impl DialogueScene {
         scene
     }
 
-    pub fn get_interpreter(&mut self) -> Rc<RefCell<Interpreter>> {
+    pub fn get_interpreter(&self) -> Rc<RefCell<Interpreter>> {
         self.interpreter.clone()
     }
 }
@@ -158,9 +203,7 @@ impl DialogueScene {
         let session_text = read_res.content;
         info!("Read script: {}", session_text);
 
-        let session = match ScriptParser::parse_session(
-            &session_text,
-        ) {
+        let session = match ScriptParser::parse_session(&session_text) {
             Ok(s) => s,
             Err(e) => {
                 info!("Parse error: {}", e.clone());

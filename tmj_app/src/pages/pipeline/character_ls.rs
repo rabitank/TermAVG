@@ -4,14 +4,17 @@ use std::ops::{Div, Mul};
 use tmj_core::{
     img::shape::Pic,
     pathes,
-    script::{ScriptValue, Table, TypeName},
+    script::{ScriptValue, TabelGet, Table, TypeName},
 };
 
 use crate::{
     SETTING,
     pages::{
         pipeline::PipeStage,
-        script_def::{character::GET_CURRENT_STAND, env::CHARACTER_LS},
+        script_def::{
+            character::{self, GET_CURRENT_STAND},
+            env::CHARACTER_LS,
+        },
     },
 };
 
@@ -56,7 +59,7 @@ impl PipeStage for CharactersStage {
                 .mul(spec as f32 + SETTING.layout.character_twh.1 as f32)
                 + spec.div(2) as f32;
             let x = (SETTING.resolution.0 as f32).div(2_f32) + x_offset + area.x as f32;
-            let y = SETTING.layout.character_up_edge as u16 + area.y; 
+            let y = SETTING.layout.character_up_edge as u16 + area.y;
             let c_rect = Rect {
                 x: x.floor() as u16,
                 y: y,
@@ -74,8 +77,11 @@ impl PipeStage for CharactersStage {
                 tracing::error!("{:?} is not a character ins", c);
                 continue;
             }
-            let current_stand_img =
-                Table::call_method(&c, &GET_CURRENT_STAND, &ctx, vec![]).unwrap();
+            let current_stand_img = c.get(format!(
+                "{}.{}",
+                character::_STANDS,
+                c.get(character::FACE)?.as_str().unwrap()
+            ))?;
 
             let current_stand_img = current_stand_img.as_str().unwrap();
             let pic = Pic::from(pathes::path(current_stand_img))?;
