@@ -17,7 +17,7 @@ use tracing::info;
 
 use crate::audio::{AUDIOM, load_audio};
 use crate::pages::pipeline::{
-    BackgrondStage, CharactersStage, DialogueFrameStage, FaceStage, LayersStage, ParagraphStage,
+    BackgroundStage, CharactersStage, DialogueFrameStage, FaceStage, LayersStage, ParagraphStage,
     PipeStage,
 };
 use crate::{SETTING, audio};
@@ -165,7 +165,7 @@ impl Draw for DialogueScene {
         let ctx = interpreter.context();
         {
             let buffer = frame.buffer_mut();
-            let buffer = stage_draw_call::<BackgrondStage>(&self, &ctx, buffer, area);
+            let buffer = stage_draw_call::<BackgroundStage>(&self, &ctx, buffer, area);
             let buffer = stage_draw_call::<CharactersStage>(&self, &ctx, buffer, area);
             let buffer = stage_draw_call::<DialogueFrameStage>(&self, &ctx, buffer, area);
             let buffer = stage_draw_call::<ParagraphStage>(&self, &ctx, buffer, area);

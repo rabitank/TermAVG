@@ -161,8 +161,8 @@ impl Parser {
             }
             // once 的第一个参数是路径
             let target_path = match &args[0] {
-                ScriptValue::String(s) => s.clone(),
-                _ => return Err("once first argument must be path string".to_string()),
+                ScriptValue::Expression(s) => s.clone(),
+                _ => return Err("once first argument must be path expression".to_string()),
             };
             let rest_args = args[1..].to_vec();
             return Ok(Command::Once {

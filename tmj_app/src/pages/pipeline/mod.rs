@@ -1,7 +1,7 @@
 pub mod character_ls;
 pub use character_ls::CharactersStage;
 pub mod background;
-pub use background::BackgrondStage;
+pub use background::BackgroundStage;
 pub mod dialogue_frame;
 pub use dialogue_frame::DialogueFrameStage;
 pub mod paragraph;

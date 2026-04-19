@@ -2531,6 +2531,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow 1.0.100",
  "crossterm 0.29.0 (sparse+https://rsproxy.cn/index/)",
+ "image",
  "ratatui",
  "serde 1.0.228 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json",

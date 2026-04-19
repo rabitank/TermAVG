@@ -117,6 +117,26 @@ fn blend(mask_color: Color, cell_color: Color, percentage: f64) -> Color {
     Color::Rgb(red as u8, green as u8, blue as u8)
 }
 
+fn cover(raw_buf: &mut Buffer, new_buf: &mut Buffer, area: Rect) {
+    for row in area.rows() {
+        for col in row.columns() {
+            let cell = &mut raw_buf[(col.x, col.y)];
+            let mask_cell = &mut new_buf[(col.x, col.y)];
+            if mask_cell.symbol().is_empty() {
+                continue;
+            }
+            cell.set_symbol(mask_cell.symbol());
+            if !mask_cell.style().fg.is_none() {
+                cell.set_fg(mask_cell.style().fg.unwrap());
+            }
+            if !mask_cell.style().bg.is_none() {
+                cell.set_bg(mask_cell.style().bg.unwrap());
+            }
+        }
+    }
+
+}
+
 /// a centered rect of the given size
 fn centered_rect(area: Rect, width: u16, height: u16) -> Rect {
     let horizontal = Layout::horizontal([width]).flex(Flex::Center);

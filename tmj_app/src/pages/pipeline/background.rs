@@ -14,9 +14,9 @@ use crate::{
 };
 
 #[derive(TypeName)]
-pub struct BackgrondStage;
+pub struct BackgroundStage;
 
-impl PipeStage for BackgrondStage {
+impl PipeStage for BackgroundStage {
     fn binding_vars() -> &'static [&'static str] {
         &[BGIMG_PATH, _BLACK_V_EDGE]
     }
@@ -35,6 +35,7 @@ impl PipeStage for BackgrondStage {
         if !bgimg_path.is_nil() && !bgimg_path.as_str().unwrap().is_empty() {
             let bgimg_path = bgimg_path.as_string().unwrap();
             let bgimg_path = pathes::path(bgimg_path);
+            tracing::info!("rendering bg {:?}", bgimg_path);
             let bg_img = Pic::from(bgimg_path)?;
             bg_img.render(area, buffer);
         }

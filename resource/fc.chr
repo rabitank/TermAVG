@@ -8,6 +8,7 @@ normal = "resource/fc_f_normal.png"
 oops = "resource/fc_f_oops.png"
 smile = "resource/fc_f_smile.png"
 cry = "resource/fc_f_cry.png"
+however = "resource/fc_f_however.png"
 
 [stands]
 happy = "resource/fc_happy.png"
@@ -16,6 +17,6 @@ normal = "resource/fc_normal.png"
 oops = "resource/fc_oops.png"
 smile = "resource/fc_smile.png"
 cry = "resource/fc_cry.png"
-
+however = "resource/fc_however.png"
 
 [voice]

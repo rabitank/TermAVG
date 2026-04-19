@@ -5,13 +5,11 @@ use std::{
 };
 
 use image::{DynamicImage, GenericImageView, ImageReader, Pixel};
-use ratatui::widgets::Widget;
+use ratatui::{buffer::Buffer, layout::Rect, widgets::Widget};
 use ratatui::{
     style::Color,
     symbols::Marker,
-    widgets::{
-        canvas::{Canvas, Shape},
-    },
+    widgets::canvas::{Canvas, Shape},
 };
 
 use anyhow::{Context, Result};
@@ -24,6 +22,25 @@ pub struct PicFrame {
 pub struct Pic {
     path: PathBuf,
     pic_frame: PicFrame,
+}
+// cover 优化图片透明部分的覆盖效果
+fn cover(raw_buf: &mut Buffer, new_buf: &mut Buffer, area: Rect) {
+    for row in area.rows() {
+        for col in row.columns() {
+            let cell = &mut raw_buf[(col.x, col.y)];
+            let mask_cell = &mut new_buf[(col.x, col.y)];
+            if mask_cell.symbol().is_empty() {
+                continue;
+            }
+            if !mask_cell.style().fg.is_none() && mask_cell.style().fg.unwrap() != Color::Reset {
+                cell.set_fg(mask_cell.style().fg.unwrap());
+                cell.set_symbol(mask_cell.symbol());
+            }
+            if !mask_cell.style().bg.is_none() && mask_cell.style().bg.unwrap() != Color::Reset {
+                cell.set_bg(mask_cell.style().bg.unwrap());
+            }
+        }
+    }
 }
 
 ///直接绘制图片的控件,不需要canvas
@@ -44,6 +61,7 @@ impl Widget for Pic {
     where
         Self: Sized,
     {
+        let mut new_buf = Buffer::empty(area);
         let canva = Canvas::default()
             .x_bounds([0_f64, (self.pic_frame.dimensions.0 + 1).into()])
             .y_bounds([0_f64, (self.pic_frame.dimensions.1 + 1).into()])
@@ -51,7 +69,8 @@ impl Widget for Pic {
             .paint(move |ctx| {
                 ctx.draw(&self.pic_frame);
             });
-        canva.render(area, buf);
+        canva.render(area, &mut new_buf);
+        cover(buf, &mut new_buf, area);
     }
 }
 
@@ -66,7 +85,10 @@ impl PicFrame {
     }
 
     fn path_to_img(path: impl AsRef<Path>) -> Result<DynamicImage> {
-        let file = File::open(&path).context(format!("open {:?} field!", path.as_ref().to_path_buf().as_mut_os_string()))?;
+        let file = File::open(&path).context(format!(
+            "open {:?} field!",
+            path.as_ref().to_path_buf().as_mut_os_string()
+        ))?;
         let reader = BufReader::new(file);
         // 2. 创建 ImageReader 并解码
         // 如果不确定格式，可以使用 with_guessed_format

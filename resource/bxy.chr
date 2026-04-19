@@ -1,0 +1,23 @@
+_current_face = "normal"
+display = "BBXX"
+
+[faces]
+happy = "resource/bxy_f_happy.png"
+sad = "resource/bxy_f_sad.png"
+normal = "resource/bxy_f_normal.png"
+oops = "resource/bxy_f_oops.png"
+smile = "resource/bxy_f_smile.png"
+cry = "resource/bxy_f_cry.png"
+however = "resource/bxy_f_however.png"
+
+[stands]
+happy = "resource/bxy_happy.png"
+sad = "resource/bxy_sad.png"
+normal = "resource/bxy_normal.png"
+oops = "resource/bxy_oops.png"
+smile = "resource/bxy_smile.png"
+cry = "resource/bxy_cry.png"
+however = "resource/bxy_however.png"
+
+
+[voice]
