@@ -36,6 +36,11 @@
   - [贡献](#贡献)
 
 ## 项目特性
+在 windows terminal上的效果:
+<p align="center">
+  <img src="doc/example.png" alt="windows terminal" width="480" height="320">
+</p>
+
 
 - 终端渲染：基于 `ratatui` + `crossterm` 的 TUI 绘制与事件处理。
 - 脚本驱动：内置脚本解析器，支持赋值、调用、`wait`、链式调用等语法。
