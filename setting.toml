@@ -7,8 +7,7 @@ default_face_img = "resource/default_face_img.png"
 preprogress_script = ["resource/script_example.fs"]
 
 [layout]
-character_up_edge = 12
-character_twh = [8, 80, 56] # 16, 56 ,128
+character_twh = [16, 80, 56] # 16, 56 ,112
 vertical_dark_edge = 8 # 12
 two_character_spec = 26
 x_character_spec = 16

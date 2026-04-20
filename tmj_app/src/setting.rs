@@ -19,7 +19,6 @@ pub struct GameSetting {
 
 #[derive(Serialize, Deserialize)]
 pub struct Layout {
-    pub character_up_edge: usize,
     pub character_twh: (u16, u16, u16),
     pub frame_face_ltwh: (u16, u16, u16, u16),
     pub vertical_dark_edge: u16,
@@ -94,7 +93,6 @@ pub static SETTING: LazyLock<GameSetting> = LazyLock::new(|| {
 impl Default for Layout {
     fn default() -> Self {
         Self {
-            character_up_edge: 24.div(2) as usize,
             character_twh: (8, 80, 56), // 16, 56 ,128
             vertical_dark_edge: 8,      // 12
             two_character_spec: 48,

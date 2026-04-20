@@ -95,7 +95,7 @@ impl Game {
                 .borrow_mut()
                 .get_scene(&UserScreen::Dialogue.to_string())
             {
-                Some(_screnn) => _screnn,
+                Some(_screen) => _screen,
                 None => anyhow::bail!("No Dialouge Screen"),
             };
             let mut screen = screen.borrow_mut();

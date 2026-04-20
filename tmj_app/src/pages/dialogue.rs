@@ -2,7 +2,7 @@ use anyhow::Context;
 use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::{KeyCode, KeyModifiers, MouseButton, MouseEventKind};
 use ratatui::layout::{Constraint, Rect};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
@@ -84,7 +84,7 @@ impl Screen for DialogueScene {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, Deserialize)]
 pub struct DialogueSceneSave {
     pub session_id: usize,
     pub ctx: SerializableContext,
@@ -126,12 +126,12 @@ impl DialogueScene {
             session_id: self.session_id,
             ctx,
         };
-        let res = toml::to_string(&save)?;
+        let res = json5::to_string(&save).context("save json serialize save failed")?;
         Ok(res)
     }
 
     pub fn load_from(&mut self, save_str: String) -> anyhow::Result<()> {
-        let save = toml::from_str::<DialogueSceneSave>(&save_str)
+        let save = json5::from_str::<DialogueSceneSave>(&save_str)
             .context("DialougeScene SaveStr Deserialize failed")?;
         self.session_id = save.session_id;
         let ctx = save.ctx;

@@ -342,7 +342,7 @@ impl Default for ScriptContext {
 use crate::script::TypeRegistry;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, Deserialize)]
 pub struct SerializableContext {
     globals: HashMap<String, ScriptValue>,
     session_id: usize,
@@ -378,9 +378,10 @@ impl SerializableContext {
             let v = value.clone();
             if value.is_table() {
                 let table_rc = value.as_table().unwrap();
-                if let Some(type_name) = table_rc.borrow().type_tag() {
+                let type_name = table_rc.borrow().type_tag().map(|s| s.to_string());
+                if let Some(type_name) = type_name {
                     let build_res = ctx.borrow_mut().type_registry.rebuild_type_methods(
-                        type_name,
+                        &type_name,
                         table_rc.clone(),
                         ctx,
                     );

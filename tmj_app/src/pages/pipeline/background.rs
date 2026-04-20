@@ -35,7 +35,7 @@ impl PipeStage for BackgroundStage {
         if !bgimg_path.is_nil() && !bgimg_path.as_str().unwrap().is_empty() {
             let bgimg_path = bgimg_path.as_string().unwrap();
             let bgimg_path = pathes::path(bgimg_path);
-            tracing::info!("rendering bg {:?}", bgimg_path);
+            // tracing::info!("rendering bg {:?}", bgimg_path);
             let bg_img = Pic::from(bgimg_path)?;
             bg_img.render(area, buffer);
         }

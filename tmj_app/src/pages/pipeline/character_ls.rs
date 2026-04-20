@@ -59,7 +59,7 @@ impl PipeStage for CharactersStage {
                 .mul(spec as f32 + SETTING.layout.character_twh.1 as f32)
                 + spec.div(2) as f32;
             let x = (SETTING.resolution.0 as f32).div(2_f32) + x_offset + area.x as f32;
-            let y = SETTING.layout.character_up_edge as u16 + area.y;
+            let y = SETTING.layout.character_twh.0 as u16 + area.y;
             let c_rect = Rect {
                 x: x.floor() as u16,
                 y: y,

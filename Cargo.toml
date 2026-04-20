@@ -20,13 +20,13 @@ collapsible_if = "allow"
 manual_range_contains = "allow"
 
 [workspace.dependencies]
-crossterm = { version = "0.29.0", registry = "rsproxy" }
+crossterm = { version = "0.29.0" }
 ratatui = "0.30.0"
-serde_json = { version = "1.0.149", registry = "rsproxy" }
 toml = "0.8"
 serde = { version = "1.0", features = ["derive"] }
+json5 = { version = "1.3.1" }
 
-strum = { version = "0.27.2", registry = "rsproxy" }
+strum = { version = "0.27.2" }
 strum_macros =  {version = "0.27.0"}
 anyhow = "1.0"
 
@@ -48,7 +48,6 @@ tmj_core = { path = "tmj_core" }
 tmj_app = { path = "tmj_app" }
 
 serde = {workspace = true}
-serde_json = {workspace = true}
 ratatui = {workspace = true}
 strum = {workspace = true}
 strum_macros =  {workspace = true}
@@ -56,7 +55,5 @@ crossterm = {workspace = true}
 tracing =  {workspace = true}
 tracing-subscriber = {workspace = true}
 anyhow = {workspace = true}
-
-tempfile = { version = "3.25.0", registry = "rsproxy" }
 image = {workspace = true}
 
