@@ -1,9 +1,11 @@
 pub mod pages;
 pub mod setting;
+pub mod layout;
 pub mod game;
 pub mod app;
 pub mod audio;
 pub mod gameflow;
 pub use setting::SETTING;
+pub use layout::LAYOUT;
 pub mod utils;
 pub mod art;

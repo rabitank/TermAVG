@@ -5,7 +5,7 @@ use tmj_core::{
 
 use crate::{
     SETTING, audio, pages::script_def::{
-        BaseVariable, Character, TextObj, VBgm, VCharacterLs, VFrame, VLayer, VParagraph, var_frame, var_layer, var_paragraph
+        BaseVariable, Character, TextObj, VBg, VBgm, VChapter, VCharacterLs, VFrame, VLayer, VParagraph, var_frame, var_layer, var_paragraph
     }
 };
 
@@ -21,15 +21,14 @@ macro_rules! script_str {
 
 // global member
 lower_str!(BGIMG_PATH);
-lower_str!(_TEXT_OBJ);
 lower_str!(FACE_PATH);
-lower_str!(_BLACK_V_EDGE); // 垂直黑边
-
 pub use super::var_character_ls::CHARACTER_LS;
 pub use super::var_frame::FRAME;
 pub use super::var_layer::LAYERS;
 pub use super::var_paragraph::PARAGRAPH;
 pub use super::var_bgm::BGM;
+pub use super::var_chapter::CHAPTER;
+pub use super::var_bg::BG;
 
 // global function
 lower_str!(TEXT);
@@ -37,6 +36,7 @@ lower_str!(DISPLAY_NAME);
 lower_str!(SAVE_TO);
 lower_str!(ADD_LAYER);
 lower_str!(DEL_LAYER);
+lower_str!(SEE);
 
 fn regist_base_gvar(ctx: &mut ScriptContext) -> anyhow::Result<()> {
     VCharacterLs::regist_to_ctx(ctx)?;
@@ -44,16 +44,13 @@ fn regist_base_gvar(ctx: &mut ScriptContext) -> anyhow::Result<()> {
     VParagraph::regist_to_ctx(ctx)?;
     VLayer::regist_to_ctx(ctx)?;
     VBgm::regist_to_ctx(ctx)?;
+    VChapter::regist_to_ctx(ctx)?;
+    VBg::regist_to_ctx(ctx)?;
     Ok(())
 }
 
 pub fn init_env(ctx: ContextRef) {
     {
-        let ctx_ref = ctx.clone();
-        let _text_obj = TextObj::default().into_script_class_table(&ctx_ref);
-        ctx.borrow_mut().set_global_val(_TEXT_OBJ, _text_obj);
-        ctx.borrow_mut()
-            .set_global_val(_BLACK_V_EDGE, ScriptValue::bool(true)); // 默认使用黑边
         ctx.borrow_mut()
             .set_global_val(DISPLAY_NAME, ScriptValue::string(""));
     }
@@ -64,8 +61,7 @@ pub fn init_env(ctx: ContextRef) {
         script_str!(ctx, FADE_IN);
         script_str!(ctx, FADE_OUT);
         script_str!(ctx, TRANSITION);
-        script_str!(ctx, BGIMG_PATH, SETTING.default_bg_img.to_str().unwrap());
-        script_str!(ctx, FACE_PATH, SETTING.default_face_img.to_str().unwrap());
+        script_str!(ctx, FACE_PATH, "");
     }
     {
         ctx.type_registry.register::<Character>();
@@ -192,7 +188,7 @@ pub fn init_env(ctx: ContextRef) {
                     .borrow_mut()
                     .set(var_paragraph::VISIBLE, ScriptValue::bool(false));
             }
-            Ok(c.borrow().get_global_val(_TEXT_OBJ).unwrap())
+            Ok(ScriptValue::Nil)
         });
     }
 
@@ -205,5 +201,16 @@ pub fn init_env(ctx: ContextRef) {
             let _ = std::fs::write(path, ct)?;
             Ok(ScriptValue::Nil)
         })
+    }
+
+    {
+        ctx.set_global_func(SEE, |_ctx, args| {
+            let name = args
+                .first()
+                .and_then(|x| x.as_str())
+                .ok_or(anyhow::anyhow!("see requires visual element name string"))?;
+            crate::pages::dialogue::see_visual_element(name)?;
+            Ok(ScriptValue::Nil)
+        });
     }
 }

@@ -37,6 +37,9 @@ pub struct Dialogue {
     pub block: Style,
     pub black_edge: Style,
     pub name: Style,
+    pub charpter_subtitle: Style,
+    pub charpter_title: Style,
+    pub background: Style,
 }
 
 pub struct Load {
@@ -98,6 +101,9 @@ pub const THEME: Theme = Theme {
         header_value: Style::new().fg(LIGHT_GRAY),
         block: Style::new().bg(DARK_BLUE).fg(LIGHT_GRAY),
         black_edge: Style::new().bg(BLACK).fg(WHITE),
+        charpter_subtitle: Style::new().fg(LIGHT_GRAY),
+        charpter_title: Style::new().fg(WHITE),
+        background: Style::new().bg(BLACK),
     },
     load: Load {
         header: Style::new()

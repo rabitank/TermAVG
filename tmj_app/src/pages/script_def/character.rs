@@ -111,7 +111,10 @@ impl RegistableType for Character {
                         .get(_FACES)?
                         .as_table()
                         .unwrap()
-                        .get(cur_face.as_str().unwrap())?;
+                        .get(cur_face.as_str().unwrap()).unwrap_or_else(|e| {
+                            tracing::warn!("got character face img failed: {:?}\n set face none", e);
+                            ScriptValue::String("".into())
+                        });
 
                     Interpreter::eval_cmds(
                         vec![

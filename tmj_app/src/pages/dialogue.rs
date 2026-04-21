@@ -1,5 +1,4 @@
 use anyhow::Context;
-use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::{KeyCode, KeyModifiers, MouseButton, MouseEventKind};
 use ratatui::layout::{Constraint, Rect};
 use serde::{Deserialize};
@@ -10,15 +9,16 @@ use tmj_core::command::{CmdBuffer, GameCmd};
 use tmj_core::event::handler::EventDispatcher;
 use tmj_core::pathes;
 use tmj_core::script::{
-    ContextRef, Interpreter, InterpreterStatus, ScriptContext, ScriptParser, SerializableContext,
-    TypeName,
+    Interpreter, InterpreterStatus, ScriptContext, ScriptParser, SerializableContext,
 };
 use tracing::info;
 
 use crate::audio::{AUDIOM, load_audio};
+use crate::pages::pipeline::ChapterStage;
 use crate::pages::pipeline::{
     BackgroundStage, CharactersStage, DialogueFrameStage, FaceStage, LayersStage, ParagraphStage,
-    PipeStage,
+    RenderVeStage,
+    visual_element::{VisualElement, VisualElementKind},
 };
 use crate::{SETTING, audio};
 
@@ -28,6 +28,49 @@ use crate::pages::script_def::var_bgm;
 use crate::pages::script_reader::{SectionReadResult, StreamSectionReader};
 use crate::pages::{Draw, Screen, ScreenActRespond, UserScreen};
 
+thread_local! {
+    static LAST_VE_SNAPSHOT: RefCell<Vec<VisualElement>> = const { RefCell::new(Vec::new()) };
+}
+
+fn visual_element_debug_dump(ve: &VisualElement) -> String {
+    let kind = match &ve.kind {
+        VisualElementKind::Image { source } => format!("Image(source={source})"),
+        VisualElementKind::Text { content } => {
+            format!("Text(len={}, content={content:?})", content.chars().count())
+        }
+        VisualElementKind::Fill => "Fill".to_string(),
+        VisualElementKind::Custom { .. } => "Custom".to_string(),
+    };
+    format!(
+        "name={:?}, visible={}, is_animated={}, z_index={}, rect=({}, {}, {}, {}), clear_before_draw={}, use_typewriter={}, typewriter_speed={}, kind={}",
+        ve.name,
+        ve.visible,
+        ve.is_animated,
+        ve.z_index,
+        ve.rect.x,
+        ve.rect.y,
+        ve.rect.width,
+        ve.rect.height,
+        ve.clear_before_draw,
+        ve.use_typewriter,
+        ve.typewriter_speed,
+        kind
+    )
+}
+
+pub fn see_visual_element(name: &str) -> anyhow::Result<()> {
+    let message = LAST_VE_SNAPSHOT.with_borrow(|elements| {
+        elements
+            .iter()
+            .find(|ve| ve.name == name)
+            .map(visual_element_debug_dump)
+            .unwrap_or_else(|| format!("see: visual element not found: {name}"))
+    });
+    println!("{message}");
+    tracing::info!("{message}");
+    Ok(())
+}
+
 pub struct DialogueScene {
     frame: usize,
     pub last_tick_secs: f64,
@@ -35,9 +78,13 @@ pub struct DialogueScene {
     session_id: usize,
     script_reader: StreamSectionReader,
     interpreter: Rc<RefCell<Interpreter>>,
+    visual_elements: RefCell<Vec<VisualElement>>,
+    last_draw_area: RefCell<Option<Rect>>,
+    need_rebuild_ve: RefCell<bool>,
     #[cfg(debug_assertions)]
     cmd_input: Option<CmdInputItem>,
 }
+
 impl DialogueScene {
     fn init_audio(&self) -> anyhow::Result<()> {
         let bgm_path = format!("{}.{}", var_bgm::BGM, var_bgm::SOURCE);
@@ -107,6 +154,9 @@ impl DialogueScene {
             session_id: 0,
             script_reader,
             interpreter,
+            visual_elements: RefCell::new(Vec::new()),
+            last_draw_area: RefCell::new(None),
+            need_rebuild_ve: RefCell::new(true),
             #[cfg(debug_assertions)]
             cmd_input: None,
         };
@@ -119,6 +169,43 @@ impl DialogueScene {
 }
 
 impl DialogueScene {
+    fn update_all_stage_elements(
+        &self,
+        ctx: &tmj_core::script::ContextRef,
+        elements: &mut Vec<VisualElement>,
+        _area: Rect,
+    ) -> anyhow::Result<()> {
+        BackgroundStage::update_elements(ctx, elements).context("background update failed")?;
+        DialogueFrameStage::update_elements(self, ctx, elements)
+            .context("dialogue frame update failed")?;
+        FaceStage::update_elements(self, ctx, elements).context("face update failed")?;
+        ParagraphStage::update_elements(self, ctx, elements)
+            .context("paragraph update failed")?;
+        CharactersStage::update_elements(ctx, elements).context("character update failed")?;
+        LayersStage::update_elements(ctx, elements).context("layers update failed")?;
+        ChapterStage::update_elements(ctx, elements).context("chapter title update failed")?;
+        Ok(())
+    }
+
+    fn rebuild_visual_elements(&self, area: Rect) -> anyhow::Result<()> {
+        let ctx = self.interpreter.borrow().context();
+        let mut elements = self.visual_elements.borrow_mut();
+        let mut rebuilt = Vec::new();
+        rebuilt.extend(BackgroundStage::build_elements(&ctx)?);
+        rebuilt.extend(DialogueFrameStage::build_elements());
+        rebuilt.extend(FaceStage::build_elements());
+        rebuilt.extend(ParagraphStage::build_elements());
+        rebuilt.extend(CharactersStage::build_elements(&ctx)?);
+        rebuilt.extend(LayersStage::build_elements(&ctx)?);
+        rebuilt.extend(ChapterStage::build_elements(&ctx)?);
+        *elements = rebuilt;
+        self.update_all_stage_elements(&ctx, &mut elements, area)?;
+        for ve in elements.iter_mut() {
+            ve.apply_props();
+        }
+        Ok(())
+    }
+
     pub fn save_to(&self) -> anyhow::Result<String> {
         let ctx = self.interpreter.borrow().context();
         let ctx = ScriptContext::serialize(&ctx);
@@ -137,40 +224,41 @@ impl DialogueScene {
         let ctx = save.ctx;
         ScriptContext::deserialize(&self.interpreter.borrow_mut().context(), ctx)
             .map_err(|e| anyhow::anyhow!(e))?;
+        *self.need_rebuild_ve.borrow_mut() = true;
         Ok(())
-    }
-}
-
-fn stage_draw_call<'a, T>(
-    screen: &DialogueScene,
-    ctx: &ContextRef,
-    buffer: &'a mut Buffer,
-    area: Rect,
-) -> &'a mut Buffer
-where
-    T: TypeName + PipeStage,
-{
-    match T::draw(screen, ctx, buffer, area).context(format!("{} draw failed!", T::TYPE_NAME)) {
-        Ok(_) => buffer,
-        Err(e) => {
-            tracing::error!("{:?}", e);
-            buffer
-        }
     }
 }
 
 impl Draw for DialogueScene {
     fn draw(&self, frame: &mut ratatui::Frame, area: Rect) {
+        *self.last_draw_area.borrow_mut() = Some(area);
+        // VE are generated only with explicit game-computed draw area.
+        if *self.need_rebuild_ve.borrow() {
+            if let Err(e) = self.rebuild_visual_elements(area) {
+                tracing::error!("rebuild visual elements failed: {:?}", e);
+            } else {
+                *self.need_rebuild_ve.borrow_mut() = false;
+            }
+        }
         let interpreter = self.interpreter.borrow_mut();
         let ctx = interpreter.context();
         {
             let buffer = frame.buffer_mut();
-            let buffer = stage_draw_call::<BackgroundStage>(&self, &ctx, buffer, area);
-            let buffer = stage_draw_call::<CharactersStage>(&self, &ctx, buffer, area);
-            let buffer = stage_draw_call::<DialogueFrameStage>(&self, &ctx, buffer, area);
-            let buffer = stage_draw_call::<ParagraphStage>(&self, &ctx, buffer, area);
-            let buffer = stage_draw_call::<FaceStage>(&self, &ctx, buffer, area);
-            let _buffer = stage_draw_call::<LayersStage>(&self, &ctx, buffer, area);
+            let mut elements = self.visual_elements.borrow_mut();
+            if let Err(e) = self.update_all_stage_elements(&ctx, &mut elements, area) {
+                tracing::error!("update visual elements failed: {:?}", e);
+            }
+            LAST_VE_SNAPSHOT.with_borrow_mut(|snapshot| {
+                *snapshot = elements.clone();
+            });
+            let buffer = match RenderVeStage::draw(&mut elements, buffer, self.last_tick_secs, area) {
+                Ok(buf) => buf,
+                Err(e) => {
+                    tracing::error!("RenderVeStage draw failed: {:?}", e);
+                    buffer
+                }
+            };
+            let _buffer = buffer;
         }
         // draw Cmd Input
         #[cfg(debug_assertions)]
@@ -184,12 +272,44 @@ impl Draw for DialogueScene {
 }
 
 impl DialogueScene {
+    fn has_active_animations(&self) -> bool {
+        self.visual_elements
+            .borrow()
+            .iter()
+            .any(|ve| ve.is_animated)
+    }
+
+    fn apply_props_now(&mut self) {
+        for ve in self.visual_elements.borrow_mut().iter_mut() {
+            ve.apply_props();
+        }
+    }
+
+    fn apply_stage_state_now(&mut self) {
+        let area = match *self.last_draw_area.borrow() {
+            Some(a) => a,
+            None => return,
+        };
+        let ctx = self.interpreter.borrow().context();
+        let mut elements = self.visual_elements.borrow_mut();
+        if let Err(e) = self.update_all_stage_elements(&ctx, &mut elements, area) {
+            tracing::error!("apply stage state failed: {:?}", e);
+        }
+    }
+
     fn toggle_dialouge(&mut self) {
         self.hide_dialouge = !self.hide_dialouge;
     }
 
     fn apply_current_session(&mut self) -> anyhow::Result<bool> {
         self.interpreter.borrow_mut().end_session();
+        // Transition contract:
+        // 1) force-settle running VE animations,
+        // 2) stage writes latest props from script state,
+        // 3) force-apply once again.
+        self.apply_props_now();
+        self.apply_stage_state_now();
+        self.apply_props_now();
         let read_res = self
             .script_reader
             .read_section(self.session_id as u64)
@@ -217,6 +337,8 @@ impl DialogueScene {
         }
 
         self.interpreter.borrow_mut().start_session(session);
+        // Do not rebuild or append VE on each session; only apply current state.
+        self.apply_stage_state_now();
         if read_res.is_eof {
             self.end_dialouge()?;
         }
@@ -224,6 +346,13 @@ impl DialogueScene {
     }
 
     fn push_dialouge_session(&mut self) -> anyhow::Result<bool> {
+        // First click during animation only forces VE to settle; no session advance.
+        if self.has_active_animations() {
+            self.apply_props_now();
+            self.apply_stage_state_now();
+            self.apply_props_now();
+            return Ok(false);
+        }
         self.session_id += 1;
         self.apply_current_session()
     }

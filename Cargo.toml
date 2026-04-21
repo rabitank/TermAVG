@@ -56,4 +56,5 @@ tracing =  {workspace = true}
 tracing-subscriber = {workspace = true}
 anyhow = {workspace = true}
 image = {workspace = true}
+chrono = {workspace = true}
 

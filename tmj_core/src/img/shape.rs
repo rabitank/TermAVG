@@ -32,11 +32,11 @@ fn cover(raw_buf: &mut Buffer, new_buf: &mut Buffer, area: Rect) {
             if mask_cell.symbol().is_empty() {
                 continue;
             }
-            if !mask_cell.style().fg.is_none() && mask_cell.style().fg.unwrap() != Color::Reset {
+            if mask_cell.fg != Color::Reset {
                 cell.set_fg(mask_cell.style().fg.unwrap());
                 cell.set_symbol(mask_cell.symbol());
             }
-            if !mask_cell.style().bg.is_none() && mask_cell.style().bg.unwrap() != Color::Reset {
+            if mask_cell.bg != Color::Reset {
                 cell.set_bg(mask_cell.style().bg.unwrap());
             }
         }

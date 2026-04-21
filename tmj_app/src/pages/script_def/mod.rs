@@ -23,6 +23,12 @@ pub use var_layer::VLayer;
 pub mod var_bgm;
 pub use var_bgm::VBgm;
 
+pub mod var_chapter;
+pub use var_chapter::VChapter;
+
+pub mod var_bg;
+pub use var_bg::VBg;
+
 
 pub trait BaseVariable: TypeName {
     fn regist_to_ctx_impl(ctx: &mut ScriptContext) -> anyhow::Result<()>;

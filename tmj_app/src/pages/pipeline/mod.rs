@@ -1,5 +1,6 @@
 pub mod character_ls;
 pub use character_ls::CharactersStage;
+pub mod visual_element;
 pub mod background;
 pub use background::BackgroundStage;
 pub mod dialogue_frame;
@@ -10,11 +11,16 @@ pub mod face;
 pub use face::FaceStage;
 pub mod layers;
 pub use layers::LayersStage;
-pub mod typewriter;
+pub mod render_ve;
+pub use render_ve::RenderVeStage;
+pub mod ve_utils;
+pub mod chapter;
+pub use chapter::ChapterStage;
 
 
-use ratatui::{buffer::Buffer, layout::Rect};
 use tmj_core::script::{ContextRef, ScriptValue};
+use ratatui::layout::Rect;
+use crate::SETTING;
 
 
 /// 这里是管线
@@ -38,6 +44,11 @@ pub trait PipeStage {
         vars
     }
 
-    /// 这里接受上一stage绘制结果然后绘制, 是最终接口
-    fn draw<'a>(screen: &crate::pages::dialogue::DialogueScene, ctx: &ContextRef, buffer: &'a mut Buffer, area: Rect) -> anyhow::Result<&'a mut Buffer>;
+    // 这里接受上一stage绘制结果然后绘制, 是最终接口
+    // fn draw<'a>(screen: &crate::pages::dialogue::DialogueScene, ctx: &ContextRef, buffer: &'a mut Buffer, area: Rect) -> anyhow::Result<&'a mut Buffer>;
+}
+
+pub fn logical_area() -> Rect {
+    let (w, h) = SETTING.resolution;
+    Rect::new(0, 0, w, h)
 }

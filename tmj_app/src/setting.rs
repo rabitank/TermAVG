@@ -1,7 +1,6 @@
-use std::{fs, ops::Div, path::PathBuf, sync::LazyLock};
+use std::{fs, path::PathBuf, sync::LazyLock};
 
 use anyhow::{Context, Result};
-use ratatui::layout::Constraint;
 use serde::{Deserialize, Serialize};
 use tmj_core::pathes;
 
@@ -14,40 +13,6 @@ pub struct GameSetting {
     pub entre_script: PathBuf,
     pub default_bg_img: PathBuf,
     pub default_face_img: PathBuf,
-    pub layout: Layout,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Layout {
-    pub character_twh: (u16, u16, u16),
-    pub frame_face_ltwh: (u16, u16, u16, u16),
-    pub vertical_dark_edge: u16,
-    pub two_character_spec: u16,
-    pub x_character_spec: u16,
-    pub frame_content_ltwh: (u16, u16, u16, u16),
-    pub text_ltwh: (u16, u16, u16, u16),
-    pub frame_name_ltwh: (u16, u16, u16, u16),
-    pub short_key_ltwh: (u16, u16, u16, u16),
-}
-
-impl Layout {
-    pub fn ltwh2rect(
-        area: ratatui::layout::Rect,
-        ltwh: &(u16, u16, u16, u16),
-    ) -> ratatui::layout::Rect {
-        let res_rect = ratatui::layout::Layout::vertical([
-            Constraint::Length(ltwh.3 as u16),
-            Constraint::Fill(1),
-        ])
-        .split(area)[0];
-        let face_rect =
-            ratatui::layout::Layout::horizontal([Constraint::Length(ltwh.2), Constraint::Fill(1)])
-                .split(res_rect)[0];
-
-        let face_rect =
-            face_rect.offset(ratatui::layout::Offset::new(ltwh.0 as i32, ltwh.1 as i32));
-        face_rect.intersection(area)
-    }
 }
 
 impl GameSetting {
@@ -90,22 +55,6 @@ pub static SETTING: LazyLock<GameSetting> = LazyLock::new(|| {
     }
 });
 
-impl Default for Layout {
-    fn default() -> Self {
-        Self {
-            character_twh: (8, 80, 56), // 16, 56 ,128
-            vertical_dark_edge: 8,      // 12
-            two_character_spec: 48,
-            x_character_spec: 16,
-            frame_face_ltwh: (20, 60, 41, 22), // 16, 112, 48 48
-            frame_name_ltwh: (60, 62, 10, 1),
-            frame_content_ltwh: (60, 63, 144, 16),
-            text_ltwh: (61, 64, 140, 15),
-            short_key_ltwh: (60, 79, 144, 1),
-        }
-    }
-}
-
 impl Default for GameSetting {
     fn default() -> Self {
         let resolution = (240, 160 / 2);
@@ -117,7 +66,6 @@ impl Default for GameSetting {
             entre_script: "resource/script.fs".into(),
             default_bg_img: "resource/default_background_img.png".into(),
             default_face_img: "resource/default_face_img.png".into(),
-            layout: Layout::default(),
         }
     }
 }

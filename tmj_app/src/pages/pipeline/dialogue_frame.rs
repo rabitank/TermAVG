@@ -1,119 +1,212 @@
 use ratatui::{
-    layout::Rect,
-    style::Color,
-    text::{Line, Span, Text},
-    widgets::{Block, Clear, Paragraph, Widget},
+    layout::{Alignment, Rect},
+    text::{Line, Span},
+    widgets::{Paragraph, Widget, Wrap},
 };
 use tmj_core::script::TypeName;
 
 use crate::{
-    SETTING,
-    art::theme::{self, THEME},
+    art::theme::THEME,
+    LAYOUT,
+    layout::Layout,
     pages::{
-        pipeline::{PipeStage, typewriter::typewriter_render_text},
-        script_def::{env::_TEXT_OBJ, var_frame},
+        pipeline::{
+            logical_area,
+            PipeStage,
+            ve_utils::clear_animations_by_prefix,
+            visual_element::{VisualElement, VisualElementKind},
+        },
+        script_def::var_frame,
     },
-    setting,
 };
 
 #[derive(TypeName)]
 pub struct DialogueFrameStage;
 
-impl DialogueFrameStage {
-    fn render_bottom_bar(area: Rect, buf: &mut ratatui::prelude::Buffer) {
-        let keys = [
-            #[cfg(debug_assertions)]
-            ("Ctr+.", "CmdLine"),
-            ("Click/Enter", "Next"),
-            ("s", "Save"),
-            ("l", "Load"),
-            ("h", "HideFrame"),
-            ("Q/Esc", "Quit"),
-        ];
-        let spans: Vec<_> = keys
-            .iter()
-            .flat_map(|(key, desc)| {
-                let key = Span::styled(format!(" {key} "), THEME.key_binding.key);
-                let desc = Span::styled(format!(" {desc} "), THEME.key_binding.description);
-                [key, desc]
-            })
-            .collect();
-        Line::from(spans)
-            .centered()
-            .style((Color::Indexed(236), Color::Indexed(232)))
-            .render(area, buf);
-    }
+fn draw_shortkey_bar(_ve: &VisualElement, buffer: &mut ratatui::buffer::Buffer, rect: Rect) -> anyhow::Result<()> {
+    let key = THEME.key_binding.key;
+    let desc = THEME.key_binding.description;
+    let line = Line::from(vec![
+        Span::styled(" Click/Enter ", key),
+        Span::styled(" Next  ", desc),
+        Span::styled(" s ", key),
+        Span::styled(" Save  ", desc),
+        Span::styled(" l ", key),
+        Span::styled(" Load  ", desc),
+        Span::styled(" h ", key),
+        Span::styled(" HideFrame  ", desc),
+        Span::styled(" Q/Esc ", key),
+        Span::styled(" Quit", desc),
+    ]);
+    Paragraph::new(line).alignment(Alignment::Center).render(rect, buffer);
+    Ok(())
 }
-impl PipeStage for DialogueFrameStage {
-    fn binding_vars() -> &'static [&'static str] {
-        &[_TEXT_OBJ, var_frame::FRAME]
+
+impl DialogueFrameStage {
+    pub const VE_FRAME_BLOCK: &'static str = "frame.block";
+    pub const VE_FRAME_TEXT: &'static str = "frame.text";
+    pub const VE_FRAME_NAME: &'static str = "frame.name";
+    pub const VE_FRAME_SHORTKEY: &'static str = "frame.shortkey";
+
+    pub fn build_elements() -> Vec<VisualElement> {
+        let area = logical_area();
+        let frame_rect = Layout::ltwh2rect(area, &LAYOUT.frame_content_ltwh);
+        let text_rect = Layout::ltwh2rect(area, &LAYOUT.text_ltwh).clamp(frame_rect);
+        let name_rect = Layout::ltwh2rect(area, &LAYOUT.frame_name_ltwh);
+        let short_key_rect = Layout::ltwh2rect(area, &LAYOUT.short_key_ltwh);
+        vec![
+            VisualElement {
+                name: Self::VE_FRAME_BLOCK.to_string(),
+                z_index: 200,
+                rect: frame_rect,
+                clear_before_draw: true,
+                text_wrap: Some(Wrap { trim: false }),
+                kind: VisualElementKind::Fill,
+                style: THEME.dialouge.block,
+                ..Default::default()
+            },
+            VisualElement {
+                name: Self::VE_FRAME_TEXT.to_string(),
+                z_index: 210,
+                rect: text_rect,
+                use_typewriter: true,
+                typewriter_speed: 40.0,
+                text_wrap: Some(Wrap { trim: true }),
+                kind: VisualElementKind::Text {
+                    content: String::new(),
+                },
+                style: THEME.dialouge.inbox,
+                ..Default::default()
+            },
+            VisualElement {
+                name: Self::VE_FRAME_NAME.to_string(),
+                visible: false,
+                z_index: 220,
+                rect: name_rect,
+                clear_before_draw: true,
+                text_wrap: Some(Wrap { trim: false }),
+                kind: VisualElementKind::Text {
+                    content: String::new(),
+                },
+                style: THEME.dialouge.name,
+                ..Default::default()
+            },
+            VisualElement {
+                name: Self::VE_FRAME_SHORTKEY.to_string(),
+                z_index: 220,
+                rect: short_key_rect,
+                text_wrap: Some(Wrap { trim: false }),
+                kind: VisualElementKind::Custom { draw: draw_shortkey_bar },
+                style: THEME.content,
+                ..Default::default()
+            },
+        ]
     }
 
-    fn draw<'a>(
+    pub fn update_elements(
         screen: &crate::pages::dialogue::DialogueScene,
         ctx: &tmj_core::script::ContextRef,
-        buffer: &'a mut ratatui::prelude::Buffer,
-        area: ratatui::prelude::Rect,
-    ) -> anyhow::Result<&'a mut ratatui::prelude::Buffer> {
-        if screen.hide_dialouge {
-            return Ok(buffer);
-        };
-
+        elements: &mut [VisualElement],
+    ) -> anyhow::Result<()> {
+        let area = logical_area();
         let mut vars = Self::get_script_vars(ctx);
         let frame = vars.pop().unwrap()?.as_table().unwrap();
-
         let frame_show = frame
             .borrow()
             .get(var_frame::VISIBLE)
             .and_then(|x| x.as_bool())
             .unwrap_or(true);
-        if !frame_show {
-            return Ok(buffer);
+        let show_all = !screen.hide_dialouge && frame_show;
+        let frame_rect = Layout::ltwh2rect(area, &LAYOUT.frame_content_ltwh);
+        let text_rect = Layout::ltwh2rect(area, &LAYOUT.text_ltwh).clamp(frame_rect);
+        let name_rect = Layout::ltwh2rect(area, &LAYOUT.frame_name_ltwh);
+        let short_key_rect = Layout::ltwh2rect(area, &LAYOUT.short_key_ltwh);
+
+        for name in [
+            Self::VE_FRAME_BLOCK,
+            Self::VE_FRAME_TEXT,
+            Self::VE_FRAME_NAME,
+            Self::VE_FRAME_SHORTKEY,
+        ] {
+            if let Some(ve) = elements.iter_mut().find(|x| x.name == name) {
+                if !ve.is_animated {
+                    ve.visible = show_all;
+                }
+            }
+        }
+        if !show_all {
+            return Ok(());
         }
 
-        //render frame
-        let frame_rect =
-            setting::Layout::ltwh2rect(area, &setting::SETTING.layout.frame_content_ltwh);
-        {
-            let dia_block = Block::new()
-                .style(theme::THEME.dialouge.block);
-            Clear::default().render(frame_rect, buffer);
-            dia_block.render(frame_rect, buffer);
+        if let Some(ve) = elements.iter_mut().find(|x| x.name == Self::VE_FRAME_BLOCK) {
+            if !ve.is_animated {
+                ve.rect = frame_rect;
+            }
         }
-
-        // render text
-        let text = frame
+        let content = frame
             .borrow()
             .get(var_frame::CONTENT)
             .and_then(|x| x.as_str().map(|s| s.to_string()))
             .unwrap_or_default();
-        // tracing::info!("frame target {text}");
-        let rendered = typewriter_render_text(&frame, &text, screen.last_tick_secs, true, 40.0);
-        // tracing::info!("frame current {rendered}");
-        let text_par = Paragraph::new(rendered);
-        let text_rect = setting::Layout::ltwh2rect(area, &SETTING.layout.text_ltwh);
-        let text_rect = text_rect.clamp(frame_rect);
-        text_par.render(text_rect, buffer);
-
-        // name
-        let name_rect = setting::Layout::ltwh2rect(area, &setting::SETTING.layout.frame_name_ltwh);
+        let tw_enable = frame
+            .borrow()
+            .get(var_frame::TYPEWRITER_ENABLE)
+            .and_then(|x| x.as_bool())
+            .unwrap_or(true);
+        let tw_speed = frame
+            .borrow()
+            .get(var_frame::TYPEWRITER_SPEED)
+            .and_then(|x| x.to_number())
+            .unwrap_or(40.0);
+        if let Some(ve) = elements.iter_mut().find(|x| x.name == Self::VE_FRAME_TEXT) {
+            if !ve.is_animated {
+                ve.rect = text_rect;
+            }
+            ve.text_wrap = Some(Wrap { trim: true });
+            if let VisualElementKind::Text { content: t } = &mut ve.kind {
+                *t = content.clone();
+            }
+            ve.use_typewriter = tw_enable;
+            ve.typewriter_speed = tw_speed;
+        }
         let speaker = frame
             .borrow()
             .get(var_frame::SPEAKER)
             .and_then(|x| x.as_string().cloned())
-            .unwrap_or("".to_string());
-        if !speaker.is_empty() {
-            let name_text = Span::from(speaker).style(theme::THEME.dialouge.name);
-            let name_text = Line::from(name_text).style(theme::THEME.dialouge.name).centered();
-            Clear::render(Clear,name_rect, buffer);
-            name_text.render(name_rect, buffer);
+            .unwrap_or_default();
+        if let Some(ve) = elements.iter_mut().find(|x| x.name == Self::VE_FRAME_NAME) {
+            if !ve.is_animated {
+                ve.rect = name_rect;
+                ve.visible = show_all && !speaker.is_empty();
+                if let VisualElementKind::Text { content: t } = &mut ve.kind {
+                    *t = speaker;
+                }
+            }
         }
-
-        // short key
-        let short_key_rect =
-            setting::Layout::ltwh2rect(area, &setting::SETTING.layout.short_key_ltwh);
-        DialogueFrameStage::render_bottom_bar(short_key_rect, buffer);
-
-        Ok(buffer)
+        if let Some(ve) = elements
+            .iter_mut()
+            .find(|x| x.name == Self::VE_FRAME_SHORTKEY)
+        {
+            if !ve.is_animated {
+                ve.rect = short_key_rect;
+            }
+        }
+        Ok(())
     }
+
+    pub fn stage_clear(
+        _screen: &crate::pages::dialogue::DialogueScene,
+        _ctx: &tmj_core::script::ContextRef,
+        elements: &mut [VisualElement],
+        _area: Rect,
+    ) -> anyhow::Result<()> {
+        clear_animations_by_prefix(elements, "frame.");
+        Ok(())
+    }
+}
+impl PipeStage for DialogueFrameStage {
+    fn binding_vars() -> &'static [&'static str] {
+        &[var_frame::FRAME]
+    }
+    
 }
