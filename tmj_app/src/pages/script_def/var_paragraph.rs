@@ -31,11 +31,11 @@ impl BaseVariable for VParagraph {
                         .borrow()
                         .get_global_val(PARAGRAPH)
                         .ok_or(anyhow::anyhow!("paragraph not found"))?
-                        .as_table()
+                        .as_table_or_resolve(ctx)
                         .ok_or(anyhow::anyhow!("paragraph is not table"))?;
                     paragraph
                         .borrow_mut()
-                        .set(M_VISIBLE, ScriptValue::bool(true));
+                        .set(M_VISIBLE, ScriptValue::bool(true), None);
                     Ok(ScriptValue::Table(paragraph))
                 })
                 .map_err(|e| anyhow::anyhow!(e))?;
@@ -48,11 +48,11 @@ impl BaseVariable for VParagraph {
                         .borrow()
                         .get_global_val(PARAGRAPH)
                         .ok_or(anyhow::anyhow!("paragraph not found"))?
-                        .as_table()
+                        .as_table_or_resolve(ctx)
                         .ok_or(anyhow::anyhow!("paragraph is not table"))?;
                     paragraph
                         .borrow_mut()
-                        .set(M_VISIBLE, ScriptValue::bool(false));
+                        .set(M_VISIBLE, ScriptValue::bool(false), None);
                     Ok(ScriptValue::Table(paragraph))
                 })
                 .map_err(|e| anyhow::anyhow!(e))?;
@@ -69,11 +69,11 @@ impl BaseVariable for VParagraph {
                         .borrow()
                         .get_global_val(PARAGRAPH)
                         .ok_or(anyhow::anyhow!("paragraph not found"))?
-                        .as_table()
+                        .as_table_or_resolve(ctx)
                         .ok_or(anyhow::anyhow!("paragraph is not table"))?;
                     let old_content = paragraph
                         .borrow()
-                        .get(M_CONTENT)
+                        .get(M_CONTENT, None)
                         .and_then(|x| x.as_str().map(|s| s.to_string()))
                         .unwrap_or_default();
                     with_behaviour_mut_from_ctx::<ParagraphBehaviour, _>(
@@ -85,7 +85,7 @@ impl BaseVariable for VParagraph {
                     let content = old_content + text;
                     paragraph
                         .borrow_mut()
-                        .set(M_CONTENT, ScriptValue::string(content));
+                        .set(M_CONTENT, ScriptValue::string(content), None);
                     Ok(ScriptValue::Table(paragraph))
                 })
                 .map_err(|e| anyhow::anyhow!(e))?;
@@ -102,13 +102,13 @@ impl BaseVariable for VParagraph {
                         .borrow()
                         .get_global_val(PARAGRAPH)
                         .ok_or(anyhow::anyhow!("paragraph not found"))?
-                        .as_table()
+                        .as_table_or_resolve(ctx)
                         .ok_or(anyhow::anyhow!("paragraph is not table"))?;
                     {
                         let mut p = paragraph.borrow_mut();
                         // Clear current page immediately, then push next-frame content via once command.
-                        p.set(M_CONTENT, ScriptValue::string(""));
-                        p.set(M_VISIBLE, ScriptValue::bool(true));
+                        p.set(M_CONTENT, ScriptValue::string(""), None);
+                        p.set(M_VISIBLE, ScriptValue::bool(true), None);
                     }
                     with_behaviour_mut_from_ctx::<ParagraphBehaviour, _>(
                         ctx,
@@ -118,7 +118,7 @@ impl BaseVariable for VParagraph {
                     );
                     paragraph
                         .borrow_mut()
-                        .set(M_CONTENT, ScriptValue::string(text));
+                        .set(M_CONTENT, ScriptValue::string(text), None);
                     Ok(ScriptValue::Table(paragraph))
                 })
                 .map_err(|e| anyhow::anyhow!(e))?;
@@ -131,11 +131,11 @@ impl BaseVariable for VParagraph {
                         .borrow()
                         .get_global_val(PARAGRAPH)
                         .ok_or(anyhow::anyhow!("paragraph not found"))?
-                        .as_table()
+                        .as_table_or_resolve(ctx)
                         .ok_or(anyhow::anyhow!("paragraph is not table"))?;
                     paragraph
                         .borrow_mut()
-                        .set(M_CONTENT, ScriptValue::string(""));
+                        .set(M_CONTENT, ScriptValue::string(""), None);
                     with_behaviour_mut_from_ctx::<ParagraphBehaviour, _>(
                         ctx,
                         |b: &mut ParagraphBehaviour| {

@@ -9,6 +9,8 @@ pub type TableRef = Rc<std::cell::RefCell<Table>>;
 /// 支持字符串键和整数键，可存储任意 ScriptValue
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Table {
+    /// 表唯一 id（存档与 `TableHandle` 引用）；由 `ScriptContext` 分配
+    pub tuid: u64,
     /// 字符串键 -> 值
     string_keys: HashMap<String, ScriptValue>,
     /// 整数键 -> 值 (用于数组式访问)
@@ -27,7 +29,7 @@ pub trait TabelGet {
 impl TabelGet for Rc<RefCell<Table>> {
     fn get(&self, member: impl ToString) -> anyhow::Result<ScriptValue> {
         self.borrow()
-            .get(&member.to_string())
+            .get(&member.to_string(), None)
             .ok_or(anyhow::anyhow!("member {:} get failed", member.to_string()))
     }
 }
@@ -42,7 +44,7 @@ impl Table {
     ) -> Result<ScriptValue, anyhow::Error> {
         {
             t.borrow()
-                .get(func_name)
+                .get_single(func_name)
                 .clone()
                 .unwrap()
                 .as_function()
@@ -77,7 +79,8 @@ impl Table {
     }
 
     // ---------- 公开接口 ----------
-    pub fn get(&self, key: &str) -> Option<ScriptValue> {
+    /// 点路径中若含 `TableHandle`，需传入 `ctx` 以便解析
+    pub fn get(&self, key: &str, ctx: Option<&ContextRef>) -> Option<ScriptValue> {
         if !key.contains('.') {
             return self.get_single(key);
         }
@@ -91,6 +94,14 @@ impl Table {
         for &part in &parts[1..] {
             current = match current {
                 ScriptValue::Table(tbl) => tbl.borrow().get_single(part)?,
+                ScriptValue::TableHandle(tuid) => {
+                    let c = ctx?;
+                    let tbl = c
+                        .borrow()
+                        .resolve_table_value(&ScriptValue::TableHandle(tuid))
+                        .ok()?;
+                    tbl.borrow().get_single(part)?
+                }
                 ScriptValue::RustObject(obj) => obj.borrow().get_method(part)?,
                 _ => {
                     tracing::error!("cannot access '{}' on non-table in path '{}'", part, key);
@@ -101,7 +112,13 @@ impl Table {
         Some(current)
     }
 
-    pub fn set(&mut self, key: impl Into<String>, value: ScriptValue) {
+    /// `ctx` 在访问含 `TableHandle` 的点路径时为必需；仅单层键可为 `None`
+    pub fn set(
+        &mut self,
+        key: impl Into<String>,
+        value: ScriptValue,
+        ctx: Option<&crate::script::ContextRef>,
+    ) {
         let key = key.into();
         if !key.contains('.') {
             self.set_single(&key, value);
@@ -113,10 +130,36 @@ impl Table {
             return;
         }
 
-        let mut current = self.get_single(parts[0]).unwrap().as_table().unwrap();
+        let Some(ctx_ref) = ctx else {
+            tracing::error!("dotted table set requires ContextRef for nested table allocation");
+            return;
+        };
+
+        let mut current = match self.get_single(parts[0]) {
+            Some(ScriptValue::Table(t)) => t,
+            Some(ScriptValue::TableHandle(tuid)) => match ctx_ref
+                .borrow()
+                .resolve_table_value(&ScriptValue::TableHandle(tuid))
+            {
+                Ok(t) => t,
+                Err(e) => {
+                    tracing::error!("table handle resolve failed: {e}");
+                    return;
+                }
+            },
+            Some(x) => {
+                tracing::error!("dotted set: first segment not table: {:?}", x);
+                return;
+            }
+            None => {
+                tracing::error!("dotted set: missing first segment");
+                return;
+            }
+        };
+
         // 遍历中间路径段，确保存在表
         for &part in &parts[1..parts.len() - 1] {
-            let new_val = || ScriptValue::Table(Rc::new(RefCell::new(Table::new())));
+            let new_val = || ScriptValue::Table(ctx_ref.borrow_mut().alloc_table_rc());
             let mut target_rc: Option<Rc<RefCell<Table>>> = None;
             {
                 // 限定借用范围，确保尽快结束
@@ -127,9 +170,14 @@ impl Table {
                     let _ = binding.int_keys.entry(num).or_insert_with(new_val.clone());
                     // 直接通过 key 获取（因为刚才确保了存在）
                     if let Some(v) = binding.int_keys.get_mut(&num) {
-                        if let ScriptValue::Table(r) = v {
-                            target_rc = Some(r.clone());
-                        }
+                        target_rc = match v {
+                            ScriptValue::Table(r) => Some(r.clone()),
+                            ScriptValue::TableHandle(tid) => ctx_ref
+                                .borrow()
+                                .resolve_table_value(&ScriptValue::TableHandle(*tid))
+                                .ok(),
+                            _ => None,
+                        };
                     }
                 } else {
                     let _ = binding
@@ -137,9 +185,14 @@ impl Table {
                         .entry(part.to_string())
                         .or_insert_with(new_val.clone());
                     if let Some(v) = binding.string_keys.get_mut(&part.to_string()) {
-                        if let ScriptValue::Table(r) = v {
-                            target_rc = Some(r.clone());
-                        }
+                        target_rc = match v {
+                            ScriptValue::Table(r) => Some(r.clone()),
+                            ScriptValue::TableHandle(tid) => ctx_ref
+                                .borrow()
+                                .resolve_table_value(&ScriptValue::TableHandle(*tid))
+                                .ok(),
+                            _ => None,
+                        };
                     }
                 }
 
@@ -160,37 +213,40 @@ impl Table {
         current.borrow_mut().set_single(last, value);
     }
 
-    pub fn new() -> Self {
+    pub fn with_tuid(tuid: u64) -> Self {
         Table {
+            tuid,
             string_keys: HashMap::new(),
             int_keys: HashMap::new(),
             metatable: None,
             type_tag: None,
         }
     }
-    /// 从 HashMap 创建 Table
-    pub fn from_hashmap<T: IntoScriptValue>(map: HashMap<String, T>) -> Self {
-        let mut table = Table::new();
+
+    /// 从 HashMap 创建 Table（调用方负责 `tuid`，通常来自 `ScriptContext::alloc_table_id`）
+    pub fn from_hashmap_with_tuid<T: IntoScriptValue>(tuid: u64, map: HashMap<String, T>) -> Self {
+        let mut table = Table::with_tuid(tuid);
         for (key, value) in map {
-            table.set(key, value.into_script_val());
+            table.set_single(&key, value.into_script_val());
         }
         table
     }
 
     /// 从迭代器创建 Table
-    pub fn from_iter<K, V>(iter: impl IntoIterator<Item = (K, V)>) -> Self
+    pub fn from_iter_with_tuid<K, V>(tuid: u64, iter: impl IntoIterator<Item = (K, V)>) -> Self
     where
         K: Into<String>,
         V: IntoScriptValue,
     {
-        let mut table = Table::new();
+        let mut table = Table::with_tuid(tuid);
         for (key, value) in iter {
-            table.set(key.into(), value.into_script_val());
+            table.set_single(&key.into(), value.into_script_val());
         }
         table
     }
-    pub fn with_type_tag(type_tag: impl Into<String>) -> Self {
-        let mut t = Table::new();
+
+    pub fn with_type_tag_and_tuid(type_tag: impl Into<String>, tuid: u64) -> Self {
+        let mut t = Table::with_tuid(tuid);
         t.type_tag = Some(type_tag.into());
         t
     }
@@ -236,7 +292,9 @@ impl Table {
     }
 
     fn get_from_metatable(&self, key: &str) -> Option<ScriptValue> {
-        self.metatable.as_ref().and_then(|mt| mt.borrow().get(key))
+        self.metatable
+            .as_ref()
+            .and_then(|mt| mt.borrow().get(key, None))
     }
 
     // ========== 类型标签 ==========
@@ -318,6 +376,6 @@ impl Table {
 
 impl Default for Table {
     fn default() -> Self {
-        Self::new()
+        Self::with_tuid(0)
     }
 }

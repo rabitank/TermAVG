@@ -90,11 +90,11 @@ impl BaseVariable for VBg {
                 .borrow()
                 .get_global_val(BG)
                 .ok_or(anyhow::anyhow!("bg not found"))?
-                .as_table()
+                .as_table_or_resolve(ctx)
                 .ok_or(anyhow::anyhow!("bg is not table"))?;
             {
                 let mut t = table.borrow_mut();
-                t.set(M_IMAGE, ScriptValue::String(new_path.clone()));
+                t.set(M_IMAGE, ScriptValue::String(new_path.clone()), None);
             }
 
             with_behaviour_mut_from_ctx::<BackgroundBehaviour, _>(ctx, |b: &mut BackgroundBehaviour| {

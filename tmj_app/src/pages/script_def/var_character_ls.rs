@@ -25,11 +25,11 @@ impl BaseVariable for VCharacterLs {
                         .borrow()
                         .get_global_val(CHARACTER_LS)
                         .unwrap()
-                        .as_table()
+                        .as_table_or_resolve(ctx)
                         .unwrap();
                     for (idx, i) in args.iter().enumerate() {
                         let c = i
-                            .as_table()
+                            .as_table_or_resolve(ctx)
                             .ok_or(anyhow::anyhow!("expect table but {idx} arg is not!"))
                             .map(|i| {
                                 if i.borrow().is_ins::<Character>() {
@@ -38,7 +38,10 @@ impl BaseVariable for VCharacterLs {
                                     Err(anyhow::anyhow!("expect character but {idx} arg is not!"))
                                 }
                             })??;
-                        c_ls.borrow_mut().set_int(idx as i64, ScriptValue::Table(c));
+                        let tuid = c.borrow().tuid;
+                        c_ls
+                            .borrow_mut()
+                            .set_int(idx as i64, ScriptValue::table_handle(tuid));
                     }
                     Ok(ScriptValue::Table(c_ls))
                 })

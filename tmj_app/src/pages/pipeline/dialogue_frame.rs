@@ -177,10 +177,10 @@ impl Behaviour for FrameBehaviour {
         elements: &mut Vec<VisualElement>,
     ) -> anyhow::Result<()> {
         let mut vars = self.get_bind_vars(ctx);
-        let frame = vars.pop().unwrap()?.as_table().unwrap();
+        let frame = vars.pop().unwrap()?.as_table_or_resolve(ctx).unwrap();
         let frame_show = frame
             .borrow()
-            .get(var_frame::VISIBLE)
+            .get(var_frame::VISIBLE, None)
             .and_then(|x| x.as_bool())
             .unwrap_or(true);
         let show_all = !screen.hide_dialouge && frame_show;

@@ -76,10 +76,10 @@ pub fn init_env(ctx: ContextRef, behaviours: crate::pages::pipeline::BehaviourMa
     }
     let _ = regist_base_gvar(&mut ctx);
     {
-        ctx.set_global_func(SAVE_TO, |_c, args| {
+        ctx.set_global_func(SAVE_TO, |c, args| {
             let table = args[0]
-                .as_table()
-                .ok_or(anyhow::anyhow!("args 0 is not table"))?;
+                .as_table_or_resolve(c)
+                .ok_or(anyhow::anyhow!("args 0 is not a table or handle"))?;
             let target_path = args[1]
                 .as_string()
                 .ok_or(anyhow::anyhow!("args 1 is not str"))?;
@@ -132,16 +132,20 @@ pub fn init_env(ctx: ContextRef, behaviours: crate::pages::pipeline::BehaviourMa
                 .borrow()
                 .get_global_val(LAYERS)
                 .ok_or(anyhow::anyhow!("layers not found"))?
-                .as_table()
+                .as_table_or_resolve(c)
                 .ok_or(anyhow::anyhow!("layers should be table"))?;
 
-            let mut layer_item = tmj_core::script::Table::new();
-            layer_item.set(var_layer::LAYER_TYPE, ScriptValue::string(layer_type));
-            layer_item.set(var_layer::SOURCE, ScriptValue::string(source));
-            layer_item.set(var_layer::VISIBLE, ScriptValue::bool(true));
+            let layer_rc = c.borrow_mut().alloc_table_rc();
+            {
+                let mut layer_item = layer_rc.borrow_mut();
+                layer_item.set(var_layer::LAYER_TYPE, ScriptValue::string(layer_type), None);
+                layer_item.set(var_layer::SOURCE, ScriptValue::string(source), None);
+                layer_item.set(var_layer::VISIBLE, ScriptValue::bool(true), None);
+            }
             layers.borrow_mut().set(
                 name,
-                ScriptValue::Table(std::rc::Rc::new(std::cell::RefCell::new(layer_item))),
+                ScriptValue::Table(layer_rc),
+                Some(c),
             );
 
             Ok(ScriptValue::Table(layers))
@@ -158,7 +162,7 @@ pub fn init_env(ctx: ContextRef, behaviours: crate::pages::pipeline::BehaviourMa
                 .borrow()
                 .get_global_val(LAYERS)
                 .ok_or(anyhow::anyhow!("layers not found"))?
-                .as_table()
+                .as_table_or_resolve(c)
                 .ok_or(anyhow::anyhow!("layers should be table"))?;
             layers.borrow_mut().remove(name);
             Ok(ScriptValue::Table(layers))

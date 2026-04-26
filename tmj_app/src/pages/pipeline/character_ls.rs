@@ -40,7 +40,7 @@ impl Behaviour for CharactersStage {
         let mut elements = Vec::new();
         for (idx, (ls_id, c)) in characters.into_iter().enumerate() {
             let c_rect = character_rect_at(idx, character_num, area);
-            let current_stand_img = match read_stand_image(&c)? {
+            let current_stand_img = match read_stand_image(ctx, &c)? {
                 Some(v) => v,
                 None => continue,
             };
@@ -66,7 +66,7 @@ impl Behaviour for CharactersStage {
         let mut desired = Vec::new();
         for (idx, (ls_id, c)) in characters.iter().enumerate() {
             let rect = character_rect_at(idx, character_num, area);
-            let source = match read_stand_image(c)? {
+            let source = match read_stand_image(ctx, c)? {
                 Some(v) => v,
                 None => continue,
             };
@@ -119,7 +119,7 @@ fn read_character_entries(
 ) -> anyhow::Result<Vec<(i64, ScriptValue)>> {
     let character_ls = CharactersStage.get_bind_vars(ctx).pop().unwrap()?;
     let character_ls = character_ls
-        .as_table()
+        .as_table_or_resolve(ctx)
         .ok_or(anyhow::anyhow!("{} should be table", CHARACTER_LS))?;
     let mut characters: Vec<(i64, ScriptValue)> = character_ls
         .borrow_mut()
@@ -154,8 +154,8 @@ fn character_rect_at(idx: usize, character_num: usize, area: Rect) -> Rect {
     .clamp(area)
 }
 
-fn read_stand_image(c: &ScriptValue) -> anyhow::Result<Option<String>> {
-    let c = match c.as_table() {
+fn read_stand_image(ctx: &ContextRef, c: &ScriptValue) -> anyhow::Result<Option<String>> {
+    let c = match c.as_table_or_resolve(ctx) {
         Some(v) => v,
         None => return Ok(None),
     };

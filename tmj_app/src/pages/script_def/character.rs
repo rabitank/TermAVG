@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, fs, rc::Rc};
 use tmj_core::{
     pathes,
     script::{
@@ -34,7 +34,7 @@ lower_str!(FACE);
 lower_str!(SAY);
 
 impl RegistableType for Character {
-    fn create_class_table(_ctx: &tmj_core::script::ScriptContext, args: Vec<ScriptValue>) -> Table {
+    fn create_class_table(ctx: &mut tmj_core::script::ScriptContext, args: Vec<ScriptValue>) -> Table {
         match args.get(0) {
             Some(setting_file) if setting_file.is_string() => {
                 // 1. deserialize rust character
@@ -42,7 +42,8 @@ impl RegistableType for Character {
                 let file = pathes::path(setting_file);
                 if !file.is_file() {
                     tracing::error!("{} is not exist", setting_file);
-                    return Table::new();
+                    let id = ctx.alloc_table_id();
+                    return Table::with_tuid(id);
                 }
                 let toml_str = fs::read_to_string(file).unwrap();
                 let character: Character = match toml::from_str(&toml_str) {
@@ -54,27 +55,49 @@ impl RegistableType for Character {
                 };
 
                 // 2. to table data
-                let mut table = Table::new();
-                table.set(DISPLAY, character.display.into_script_val());
-                table.set(_STANDS, character.stands.into_script_val());
-                table.set(_FACES, character.faces.into_script_val());
-                table.set(_VOICES, character.voice.into_script_val());
-                table.set(FACE, character._current_face.into_script_val());
+                let root_id = ctx.alloc_table_id();
+                let mut table = Table::with_tuid(root_id);
+                table.set(DISPLAY, character.display.into_script_val(), None);
+                table.set(
+                    _STANDS,
+                    ScriptValue::Table(Rc::new(RefCell::new(Table::from_hashmap_with_tuid(
+                        ctx.alloc_table_id(),
+                        character.stands,
+                    )))),
+                    None,
+                );
+                table.set(
+                    _FACES,
+                    ScriptValue::Table(Rc::new(RefCell::new(Table::from_hashmap_with_tuid(
+                        ctx.alloc_table_id(),
+                        character.faces,
+                    )))),
+                    None,
+                );
+                table.set(
+                    _VOICES,
+                    ScriptValue::Table(Rc::new(RefCell::new(Table::from_hashmap_with_tuid(
+                        ctx.alloc_table_id(),
+                        character.voice,
+                    )))),
+                    None,
+                );
+                table.set(FACE, character._current_face.into_script_val(), None);
                 table
             }
             None => {
                 tracing::error!("character args error: No args ");
-                Table::new()
+                Table::with_tuid(ctx.alloc_table_id())
             }
             _ => {
                 tracing::error!("character args error: wrong arg 0");
-                Table::new()
+                Table::with_tuid(ctx.alloc_table_id())
             }
         }
     }
 
     fn attach_table_methods(
-        _ctx: &tmj_core::script::ContextRef,
+        ctx: &tmj_core::script::ContextRef,
         table_rc: &Rc<std::cell::RefCell<Table>>,
     ) -> Result<(), String> {
 
@@ -91,16 +114,18 @@ impl RegistableType for Character {
 
                     tracing::info!("{:?} is saying {}", speaker_name.as_str().unwrap(), text);
                     let cur_face = table_clone.get(FACE)?;
-                    let face_path = table_clone
-                        .get(_FACES)?
-                        .as_table()
-                        .unwrap()
-                        .get(cur_face.as_str().unwrap())
-                        .unwrap_or_else(|e| {
-                            tracing::warn!(
-                                "got character face img failed: {:?}\n set face none",
-                                e
-                            );
+                    let faces_sv = table_clone.get(_FACES)?;
+                    let face_path = ctx
+                        .borrow()
+                        .resolve_table_value(&faces_sv)
+                        .ok()
+                        .and_then(|faces_tbl| {
+                            faces_tbl
+                                .borrow()
+                                .get(cur_face.as_str().unwrap(), None)
+                        })
+                        .unwrap_or_else(|| {
+                            tracing::warn!("got character face img failed; set face none");
                             ScriptValue::String("".into())
                         });
 
@@ -113,6 +138,7 @@ impl RegistableType for Character {
 
                     Ok(ScriptValue::nil())
                 }),
+                Some(ctx),
             );
         }
         Ok(())

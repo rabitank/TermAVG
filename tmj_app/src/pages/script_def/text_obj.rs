@@ -14,17 +14,18 @@ pub struct TextObj {
 
 
 impl IntoTable for TextObj {
-    fn into_data_table(self) -> tmj_core::script::Table {
-        let mut table = Table::new();
-        table.set(CONTENT, self.content.into_script_val());
-        table.set(XPOS, self.pos.0.into_script_val());
-        table.set(YPOS, self.pos.1.into_script_val());
+    fn into_data_table(self, ctx: &mut tmj_core::script::ScriptContext) -> tmj_core::script::Table {
+        let tuid = ctx.alloc_table_id();
+        let mut table = Table::with_tuid(tuid);
+        table.set(CONTENT, self.content.into_script_val(), None);
+        table.set(XPOS, self.pos.0.into_script_val(), None);
+        table.set(YPOS, self.pos.1.into_script_val(), None);
         table
     }
 }
 
 impl FromCommand for TextObj {
-    fn from_script_command(ctx: &ScriptContext, args: Vec<tmj_core::script::ScriptValue>) -> Result<Self, String>
+    fn from_script_command(_ctx: &mut ScriptContext, args: Vec<tmj_core::script::ScriptValue>) -> Result<Self, String>
         where
             Self: Sized {
                 let len = args.len();

@@ -151,12 +151,16 @@ impl DialogueScene {
         let _ = pathes::ensure_dir("resource");
         let ctx = ScriptContext::new();
         let ctx = Rc::new(RefCell::new(ctx));
+        ctx.borrow_mut().bind_context_ref(ctx.clone());
 
         let behaviours_map: BehaviourMap = BehaviourMap {
             behaviours: Rc::new(RefCell::new(default_dialogue_ve_stages())),
         };
 
         super::script_def::init_env(ctx.clone(), behaviours_map.clone());
+        ctx.borrow_mut()
+            .rebuild_tuid_table_from_live()
+            .expect("rebuild tuid_table after init_env");
 
         let interpreter = Rc::new(RefCell::new(Interpreter::new(ctx)));
 

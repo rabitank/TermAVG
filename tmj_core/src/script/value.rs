@@ -9,8 +9,8 @@ use std::{
 };
 
 use crate::script::{
-    RustObjectTrait, RustObjectWrapper, ScriptFunction, Table, TableRef, function::FnSignature,
-    value_convert::IntoScriptValue,
+    ContextRef, RustObjectTrait, RustObjectWrapper, ScriptFunction, Table, TableRef,
+    function::FnSignature, value_convert::IntoScriptValue,
 };
 
 /// 脚本系统中的核心值类型
@@ -22,7 +22,9 @@ pub enum ScriptValue {
     Float(f64),
     String(String),
     Expression(String),  // 表达式,变量名一类的东西的索引, 并不是真的值也不会保存在任何环境中, 仅过度用
-    Table(TableRef), // Rc + RefCell 足够 
+    Table(TableRef), // Rc + RefCell 足够
+    /// 仅持 `tuid`，运行时经 `ScriptContext::tuid_table` 解析为表
+    TableHandle(u64),
 
     Function(Rc<ScriptFunction>), // 不需要 Send + Sync
     RustObject(Rc<RustObjectWrapper>), // 注意, rustobj不像 classtable那样能够序列化,
@@ -37,6 +39,7 @@ enum ScriptValueData {
     Float(f64),
     String(String),
     Table(Table), // 直接序列化 Table 数据
+    TableHandle(u64),
 
     #[serde(skip)]
     Function,
@@ -56,6 +59,7 @@ impl serde::Serialize for ScriptValue {
             ScriptValue::Float(f) => ScriptValueData::Float(*f),
             ScriptValue::String(s) => ScriptValueData::String(s.clone()),
             ScriptValue::Table(t) => ScriptValueData::Table(t.borrow().clone()),
+            ScriptValue::TableHandle(tuid) => ScriptValueData::TableHandle(*tuid),
             ScriptValue::Expression(_) => ScriptValueData::Nil,
             ScriptValue::Function(_) => ScriptValueData::Nil, // (serde::ser::Error::custom("Function cannot be serialized")),
             ScriptValue::RustObject(_) => ScriptValueData::Nil, // Err(serde::ser::Error::custom("RustObject cannot be serialized")),
@@ -77,6 +81,7 @@ impl<'de> Deserialize<'de> for ScriptValue {
             ScriptValueData::Float(f) => ScriptValue::Float(f),
             ScriptValueData::String(s) => ScriptValue::String(s),
             ScriptValueData::Table(t) => ScriptValue::Table(Rc::new(RefCell::new(t))),
+            ScriptValueData::TableHandle(tuid) => ScriptValue::TableHandle(tuid),
             ScriptValueData::Function => {
                 return Err(de::Error::custom("Function cannot be deserialized"));
             }
@@ -105,12 +110,20 @@ impl ScriptValue {
         ScriptValue::String(v.into())
     }
 
-    pub fn table() -> Self {
-        ScriptValue::Table(Rc::new(RefCell::new(Table::new())))
+    pub fn table_handle(tuid: u64) -> Self {
+        ScriptValue::TableHandle(tuid)
     }
 
-    pub fn table_from_hashmap<T: IntoScriptValue>(map: HashMap<String, T>) -> Self {
-        ScriptValue::Table(Rc::new(RefCell::new(Table::from_hashmap(map))))
+    pub fn table_from_hashmap_in_ctx<T: IntoScriptValue>(
+        ctx: &mut crate::script::ScriptContext,
+        map: HashMap<String, T>,
+    ) -> Self {
+        let tuid = ctx.alloc_table_id();
+        let t = Table::from_hashmap_with_tuid(tuid, map);
+        let rc = Rc::new(RefCell::new(t));
+        ctx.register_table_rc(&rc)
+            .expect("table_from_hashmap_in_ctx: register");
+        ScriptValue::Table(rc)
     }
 
     pub fn function<F>(name: impl Into<String>, func: F) -> Self
@@ -145,6 +158,15 @@ impl ScriptValue {
     }
     pub fn is_table(&self) -> bool {
         matches!(self, ScriptValue::Table(_))
+    }
+
+    pub fn is_table_handle(&self) -> bool {
+        matches!(self, ScriptValue::TableHandle(_))
+    }
+
+    /// 表本体或可按 `tuid` 解析的句柄
+    pub fn is_table_like(&self) -> bool {
+        self.is_table() || self.is_table_handle()
     }
     pub fn is_function(&self) -> bool {
         matches!(self, ScriptValue::Function(_))
@@ -215,6 +237,10 @@ impl ScriptValue {
         }
     }
 
+    pub fn as_table_or_resolve(&self, ctx: &ContextRef) -> Option<TableRef> {
+        ctx.borrow().resolve_table_value(self).ok()
+    }
+
     pub fn as_function(&self) -> Option<Rc<ScriptFunction>> {
         if let ScriptValue::Function(f) = self {
             Some(Rc::clone(f))
@@ -279,6 +305,7 @@ impl fmt::Debug for ScriptValue {
             ScriptValue::String(v) => write!(f, "{:?}", v),
             ScriptValue::Expression(v) => write!(f, "{v}"),
             ScriptValue::Table(_) => write!(f, "<table>"),
+            ScriptValue::TableHandle(t) => write!(f, "<table_handle {t}>"),
             ScriptValue::Function(func) => write!(f, "<fn:{}>", func.name()),
             ScriptValue::RustObject(_) => write!(f, "<rust_obj>"),
         }
@@ -296,6 +323,7 @@ impl PartialEq for ScriptValue {
             }
             (ScriptValue::String(a), ScriptValue::String(b)) => a == b,
             (ScriptValue::Table(a), ScriptValue::Table(b)) => Rc::ptr_eq(a, b),
+            (ScriptValue::TableHandle(a), ScriptValue::TableHandle(b)) => a == b,
             (ScriptValue::Function(a), ScriptValue::Function(b)) => Rc::ptr_eq(a, b),
             (ScriptValue::RustObject(a), ScriptValue::RustObject(b)) => Rc::ptr_eq(a, b),
             _ => false,

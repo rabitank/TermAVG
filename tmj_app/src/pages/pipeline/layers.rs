@@ -72,7 +72,7 @@ impl Behaviour for LayerBehaviour {
             .get_bind_vars(ctx)
             .pop()
             .unwrap()?
-            .as_table()
+            .as_table_or_resolve(ctx)
             .ok_or(anyhow::anyhow!("{LAYERS} should be table"))?;
         let items: Vec<_> = layers
             .borrow()
@@ -81,13 +81,13 @@ impl Behaviour for LayerBehaviour {
             .collect();
         let mut out = Vec::new();
         for (name, val) in items {
-            let layer = match val.as_table() {
+            let layer = match val.as_table_or_resolve(ctx) {
                 Some(v) => v,
                 None => continue,
             };
             let layer_type = layer
                 .borrow()
-                .get(var_layer::LAYER_TYPE)
+                .get(var_layer::LAYER_TYPE, None)
                 .and_then(|x| x.as_str().map(|s| s.to_string()))
                 .unwrap_or_default();
             if layer_type != "image" {
@@ -117,7 +117,7 @@ impl Behaviour for LayerBehaviour {
             .get_bind_vars(ctx)
             .pop()
             .unwrap()?
-            .as_table()
+            .as_table_or_resolve(ctx)
             .ok_or(anyhow::anyhow!("{LAYERS} should be table"))?;
         let items: Vec<_> = layers
             .borrow()
@@ -126,19 +126,19 @@ impl Behaviour for LayerBehaviour {
             .collect();
 
         for (name, val) in items {
-            let layer = match val.as_table() {
+            let layer = match val.as_table_or_resolve(ctx) {
                 Some(v) => v,
                 None => continue,
             };
             let ve_name = format!("layer.{name}");
             let visible = layer
                 .borrow()
-                .get(var_layer::VISIBLE)
+                .get(var_layer::VISIBLE, None)
                 .and_then(|x| x.as_bool())
                 .unwrap_or(true);
             let layer_type = layer
                 .borrow()
-                .get(var_layer::LAYER_TYPE)
+                .get(var_layer::LAYER_TYPE, None)
                 .and_then(|x| x.as_str().map(|s| s.to_string()))
                 .unwrap_or_default();
             if let Some(ve) = elements.iter_mut().find(|x| x.name == ve_name) {
@@ -151,7 +151,7 @@ impl Behaviour for LayerBehaviour {
                 if let VisualElementKind::Image { source } = &mut ve.kind {
                     *source = layer
                         .borrow()
-                        .get(var_layer::SOURCE)
+                        .get(var_layer::SOURCE, None)
                         .and_then(|x| x.as_str().map(|s| s.to_string()))
                         .unwrap_or_default();
                 }

@@ -38,7 +38,7 @@ impl BaseVariable for VChapter {
                         .borrow()
                         .get_global_val(CHAPTER)
                         .ok_or(anyhow::anyhow!("chapter not found"))?
-                        .as_table()
+                        .as_table_or_resolve(ctx)
                         .ok_or(anyhow::anyhow!("chapter is not table"))?;
                     Ok(ScriptValue::Table(chapter))
                 })
@@ -55,7 +55,7 @@ impl BaseVariable for VChapter {
                         .borrow()
                         .get_global_val(CHAPTER)
                         .ok_or(anyhow::anyhow!("chapter not found"))?
-                        .as_table()
+                        .as_table_or_resolve(ctx)
                         .ok_or(anyhow::anyhow!("chapter is not table"))?;
                     Ok(ScriptValue::Table(chapter))
                 })

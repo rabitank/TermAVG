@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use crate::script::{ContextRef, IntoTable, RegistableType, ScriptValue, Table, TypeName};
 use std::{rc::Rc, cell::RefCell};
 
@@ -91,38 +90,27 @@ impl IntoScriptValue for Rc<RefCell<Table>> {
     }
 }
 
-// ========== HashMap 递归实现 ==========
-impl<T: IntoScriptValue> IntoScriptValue for HashMap<String, T> {
-    fn into_script_val(self) -> ScriptValue {
-        let mut table = Table::new();
-        for (key, value) in self {
-            table.set(key, value.into_script_val());
-        }
-        ScriptValue::Table(Rc::new(RefCell::new(table)))
-    }
-}
-
-// ========== Vec 实现 (数组) ==========
-impl<T: IntoScriptValue> IntoScriptValue for Vec<T> {
-    fn into_script_val(self) -> ScriptValue {
-        let mut table = Table::new();
-        for (i, value) in self.into_iter().enumerate() {
-            table.set_int(i as i64, value.into_script_val());
-        }
-        ScriptValue::Table(Rc::new(RefCell::new(table)))
-    }
-}
-
 impl<T: RegistableType + IntoTable + TypeName> IntoScriptValue for T {
     fn into_script_class_table(self, ctx: &ContextRef) -> ScriptValue {
         let type_name = self.type_name();
-        let table = Rc::new(RefCell::new(self.into_data_table()));
+        let table = {
+            let mut sctx = ctx.borrow_mut();
+            Rc::new(RefCell::new(self.into_data_table(&mut sctx)))
+        };
         table.borrow_mut().set_type_tag(type_name);
 
         match T::attach_table_methods(ctx, &table) {
-            Ok(_) => ScriptValue::Table(table),
+            Ok(_) => {
+                let _ = ctx
+                    .borrow_mut()
+                    .register_script_value_tables(&ScriptValue::Table(table.clone()));
+                ScriptValue::Table(table)
+            }
             Err(info) => {
                 tracing::error!("into_script_class_table faild: {}", info);
+                let _ = ctx
+                    .borrow_mut()
+                    .register_script_value_tables(&ScriptValue::Table(table.clone()));
                 ScriptValue::Table(table)
             }
         }

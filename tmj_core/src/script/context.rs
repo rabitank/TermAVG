@@ -1,4 +1,4 @@
-use crate::script::{RustObjectTrait, ScriptFunction, ScriptValue, Table, function::FnSignature};
+use crate::script::{RustObjectTrait, ScriptFunction, ScriptValue, Table, TableRef, function::FnSignature};
 
 use anyhow::Context;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
@@ -21,6 +21,12 @@ pub struct ScriptContext {
     pub type_registry: TypeRegistry,
     once_stack: Vec<OnceRecord>,
     session_id: usize,
+    /// 下一个分配的表 id（从 1 起；0 表示非法）
+    next_tuid: u64,
+    /// 运行时 `tuid` → 表；不参与序列化
+    tuid_table: HashMap<u64, TableRef>,
+    /// 供 `Table::set` 点路径等分配子表；在 `Interpreter` / 场景创建后绑定
+    context_ref: Option<ContextRef>,
 }
 
 impl ScriptContext {
@@ -31,6 +37,185 @@ impl ScriptContext {
             type_registry,
             once_stack: Vec::new(),
             session_id: 0,
+            next_tuid: 1,
+            tuid_table: HashMap::new(),
+            context_ref: None,
+        }
+    }
+
+    /// 在将 `ScriptContext` 包进 `Rc<RefCell<_>>` 之后调用一次，供表内点路径分配子表
+    pub fn bind_context_ref(&mut self, ctx: ContextRef) {
+        self.context_ref = Some(ctx);
+    }
+
+    pub fn context_ref(&self) -> Option<ContextRef> {
+        self.context_ref.clone()
+    }
+
+    /// 分配新 `tuid`（尚未与 `Rc` 绑定）
+    pub fn alloc_table_id(&mut self) -> u64 {
+        let id = self.next_tuid;
+        self.next_tuid += 1;
+        id
+    }
+
+    /// 注册已带 `tuid` 的表（同一 `tuid` 必须 `Rc` 指针一致）
+    pub fn register_table_rc(&mut self, rc: &TableRef) -> Result<(), String> {
+        let tuid = rc.borrow().tuid;
+        if tuid == 0 {
+            return Err("table tuid 0 is invalid".to_string());
+        }
+        if let Some(existing) = self.tuid_table.get(&tuid) {
+            if !Rc::ptr_eq(existing, rc) {
+                return Err(format!(
+                    "duplicate tuid {tuid}: two different table Rc instances"
+                ));
+            }
+            return Ok(());
+        }
+        self.tuid_table.insert(tuid, rc.clone());
+        Ok(())
+    }
+
+    /// 分配空表并注册到 `tuid_table`
+    pub fn alloc_table_rc(&mut self) -> TableRef {
+        let tuid = self.alloc_table_id();
+        let t = Table::with_tuid(tuid);
+        let rc = Rc::new(RefCell::new(t));
+        self.register_table_rc(&rc)
+            .expect("alloc_table_rc: fresh tuid must register");
+        rc
+    }
+
+    /// 将 `ScriptValue` 子树中所有 `Table` 按 `tuid` 登记（用于类型实例构建后）
+    pub fn register_script_value_tables(&mut self, v: &ScriptValue) -> Result<(), String> {
+        match v {
+            ScriptValue::Table(rc) => self.register_table_rc_recursive(rc),
+            ScriptValue::Nil
+            | ScriptValue::Bool(_)
+            | ScriptValue::Int(_)
+            | ScriptValue::Float(_)
+            | ScriptValue::String(_)
+            | ScriptValue::Expression(_)
+            | ScriptValue::TableHandle(_)
+            | ScriptValue::Function(_)
+            | ScriptValue::RustObject(_) => Ok(()),
+        }
+    }
+
+    fn register_table_rc_recursive(&mut self, rc: &TableRef) -> Result<(), String> {
+        self.register_table_rc(rc)?;
+        let children: Vec<ScriptValue> = {
+            let b = rc.borrow();
+            b.iter()
+                .map(|(_, v)| v.clone())
+                .chain(b.int_iter().map(|(_, v)| v.clone()))
+                .collect()
+        };
+        for child in children {
+            self.register_script_value_tables(&child)?;
+        }
+        Ok(())
+    }
+
+    pub fn resolve_table_value(&self, v: &ScriptValue) -> Result<TableRef, String> {
+        match v {
+            ScriptValue::Table(rc) => Ok(rc.clone()),
+            ScriptValue::TableHandle(tuid) => self
+                .tuid_table
+                .get(tuid)
+                .cloned()
+                .ok_or_else(|| format!("TableHandle: unknown tuid {tuid}")),
+            _ => Err("value is not a table or table handle".to_string()),
+        }
+    }
+
+    /// 读档入口：清空索引（`to_context` 前）
+    pub fn clear_tuid_table_for_load(&mut self) {
+        self.tuid_table.clear();
+    }
+
+    /// 从当前 `globals` 引用图重建 `tuid_table` 并校验 `TableHandle`；更新 `next_tuid`
+    pub fn rebuild_tuid_table_from_live(&mut self) -> Result<(), String> {
+        self.tuid_table.clear();
+        let mut max_seen: u64 = 0;
+        let roots: Vec<ScriptValue> = self.globals.values().cloned().collect();
+        for v in &roots {
+            self.visit_register_tables(v, &mut max_seen)?;
+        }
+        for v in roots.iter() {
+            self.visit_validate_handles(v)?;
+        }
+        self.next_tuid = self.next_tuid.max(max_seen.saturating_add(1));
+        Ok(())
+    }
+
+    fn visit_register_tables(
+        &mut self,
+        v: &ScriptValue,
+        max_seen: &mut u64,
+    ) -> Result<(), String> {
+        match v {
+            ScriptValue::Table(rc) => {
+                let tuid = rc.borrow().tuid;
+                *max_seen = (*max_seen).max(tuid);
+                if let Some(existing) = self.tuid_table.get(&tuid) {
+                    if !Rc::ptr_eq(existing, rc) {
+                        return Err(format!(
+                            "live graph: duplicate tuid {tuid} on different Rc"
+                        ));
+                    }
+                } else {
+                    self.tuid_table.insert(tuid, rc.clone());
+                }
+                let children: Vec<ScriptValue> = {
+                    let b = rc.borrow();
+                    b.iter()
+                        .map(|(_, v)| v.clone())
+                        .chain(b.int_iter().map(|(_, v)| v.clone()))
+                        .collect()
+                };
+                for child in children {
+                    self.visit_register_tables(&child, max_seen)?;
+                }
+                Ok(())
+            }
+            ScriptValue::TableHandle(_) => Ok(()),
+            ScriptValue::Nil
+            | ScriptValue::Bool(_)
+            | ScriptValue::Int(_)
+            | ScriptValue::Float(_)
+            | ScriptValue::String(_)
+            | ScriptValue::Expression(_)
+            | ScriptValue::Function(_)
+            | ScriptValue::RustObject(_) => Ok(()),
+        }
+    }
+
+    fn visit_validate_handles(&self, v: &ScriptValue) -> Result<(), String> {
+        match v {
+            ScriptValue::TableHandle(tuid) => {
+                if !self.tuid_table.contains_key(tuid) {
+                    return Err(format!(
+                        "TableHandle: dangling tuid {tuid} (not in tuid_table)"
+                    ));
+                }
+                Ok(())
+            }
+            ScriptValue::Table(rc) => {
+                let children: Vec<ScriptValue> = {
+                    let b = rc.borrow();
+                    b.iter()
+                        .map(|(_, v)| v.clone())
+                        .chain(b.int_iter().map(|(_, v)| v.clone()))
+                        .collect()
+                };
+                for child in children {
+                    self.visit_validate_handles(&child)?;
+                }
+                Ok(())
+            }
+            _ => Ok(()),
         }
     }
 
@@ -114,7 +299,8 @@ impl ScriptContext {
     pub fn set_global_table(&mut self, name: impl Into<String>) {
         let name = name.into();
         info!("Context: register_global_table {}", name);
-        self.globals.insert(name, ScriptValue::table());
+        let rc = self.alloc_table_rc();
+        self.globals.insert(name, ScriptValue::Table(rc));
     }
 
     pub fn set_table_member(
@@ -124,18 +310,18 @@ impl ScriptContext {
         value: ScriptValue,
     ) -> Result<(), String> {
         let obj = self.resolve_path(obj_path)?;
-        if let Some(table) = obj.as_table() {
-            let member_name = member_name.into();
-            info!(
-                "Context: register_member {}.{}",
-                obj_path,
-                member_name.clone()
-            );
-            table.borrow_mut().set(member_name, value);
-            Ok(())
-        } else {
-            Err(format!("'{}' is not a table", obj_path))
-        }
+        let table = self.resolve_table_value(&obj)?;
+        let member_name = member_name.into();
+        info!(
+            "Context: register_member {}.{}",
+            obj_path,
+            member_name.clone()
+        );
+        let ctx_opt = self.context_ref();
+        table
+            .borrow_mut()
+            .set(member_name, value, ctx_opt.as_ref());
+        Ok(())
     }
 
     pub fn set_table_func<F>(
@@ -148,20 +334,20 @@ impl ScriptContext {
         F: FnSignature,
     {
         let obj = self.resolve_path(obj_path)?;
-        if let Some(table) = obj.as_table() {
-            let method_name = method_name.into();
-            info!(
-                "Context: register_object_method {}.{}",
-                obj_path, method_name
-            );
-            let func = ScriptFunction::new(method_name.clone(), func);
-            table
-                .borrow_mut()
-                .set(method_name, ScriptValue::Function(Rc::new(func)));
-            Ok(())
-        } else {
-            Err(format!("'{}' is not a table", obj_path))
-        }
+        let table = self.resolve_table_value(&obj)?;
+        let method_name = method_name.into();
+        info!(
+            "Context: register_object_method {}.{}",
+            obj_path, method_name
+        );
+        let func = ScriptFunction::new(method_name.clone(), func);
+        let ctx_opt = self.context_ref();
+        table.borrow_mut().set(
+            method_name,
+            ScriptValue::Function(Rc::new(func)),
+            ctx_opt.as_ref(),
+        );
+        Ok(())
     }
 
     pub fn resolve_path(&self, path: &str) -> Result<ScriptValue, String> {
@@ -174,12 +360,16 @@ impl ScriptContext {
             .get_global_val(parts[0])
             .ok_or_else(|| format!("Global '{}' not found", parts[0]))?;
 
+        let ctx_opt = self.context_ref();
         for &part in &parts[1..] {
             current = match current {
-                ScriptValue::Table(table) => table
-                    .borrow()
-                    .get(part)
-                    .ok_or_else(|| format!("Field '{}' not found", part))?,
+                ScriptValue::Table(_) | ScriptValue::TableHandle(_) => {
+                    let table = self.resolve_table_value(&current)?;
+                    table
+                        .borrow()
+                        .get(part, ctx_opt.as_ref())
+                        .ok_or_else(|| format!("Field '{}' not found", part))?
+                }
                 ScriptValue::RustObject(ref obj) => obj
                     .borrow()
                     .get_method(part)
@@ -215,12 +405,10 @@ impl ScriptContext {
                 let obj = self
                     .globals
                     .get(&obj_name)
-                    .ok_or_else(|| format!("Global '{}' not found", obj_name))?;
-
-                match obj {
-                    ScriptValue::Table(table) => Rc::clone(table),
-                    _ => return Err(format!("Cannot set field on {:?}", obj)),
-                }
+                    .ok_or_else(|| format!("Global '{}' not found", obj_name))?
+                    .clone();
+                self.resolve_table_value(&obj)
+                    .map_err(|_| format!("Cannot set field on {:?}", obj))?
             };
 
             // 先记录日志 (在移动 value 之前)
@@ -241,20 +429,19 @@ impl ScriptContext {
         value: ScriptValue,
     ) -> Result<(), String> {
         let parts: Vec<&str> = field_path.split('.').collect();
+        let ctx_opt = self.context_ref();
 
         if parts.len() == 1 {
-            table.borrow_mut().set(parts[0], value);
+            table
+                .borrow_mut()
+                .set(parts[0], value, ctx_opt.as_ref());
         } else {
-            let sub_table = table
+            let sub_sv = table
                 .borrow()
-                .get(parts[0])
+                .get(parts[0], ctx_opt.as_ref())
                 .ok_or_else(|| format!("Field '{}' not found", parts[0]))?;
-
-            if let ScriptValue::Table(sub_t) = sub_table {
-                self.set_table_relative(&sub_t, &parts[1..].join("."), value)?;
-            } else {
-                return Err(format!("Field '{}' is not a table", parts[0]));
-            }
+            let sub_t = self.resolve_table_value(&sub_sv)?;
+            self.set_table_relative(&sub_t, &parts[1..].join("."), value)?;
         }
 
         Ok(())
@@ -288,19 +475,13 @@ impl ScriptContext {
                 let field_path = parts[1..].join(".");
 
                 // 先获取 table 引用 (在独立作用域中，释放 globals 借用)
-                let table = {
-                    if let Some(obj) = self.globals.get(&obj_name).cloned() {
-                        match obj {
-                            ScriptValue::Table(table) => Some(table),
-                            _ => {
-                                info!("Context: cannot restore on non-table: {}", obj_name);
-                                None
-                            }
-                        }
-                    } else {
-                        None
-                    }
-                };
+                let table = self
+                    .globals
+                    .get(&obj_name)
+                    .and_then(|obj| self.resolve_table_value(obj).ok());
+                if table.is_none() {
+                    info!("Context: cannot restore on non-table: {}", obj_name);
+                }
 
                 // 现在可以安全调用 set_table_field
                 if let Some(t) = table {
@@ -330,6 +511,8 @@ impl ScriptContext {
         self.globals.clear();
         self.once_stack.clear();
         self.session_id = 0;
+        self.tuid_table.clear();
+        self.next_tuid = 1;
     }
 }
 
@@ -376,28 +559,44 @@ impl SerializableContext {
 
         for (name, value) in &self.globals {
             let v = value.clone();
-            if value.is_table() {
-                let table_rc = value.as_table().unwrap();
+            if let ScriptValue::Table(table_rc) = &v {
+                let table_rc = table_rc.clone();
+                // 直接掏出来方法注册函数给table用上. 这里ai处理不赖借用问题所以直接内联了
                 let type_name = table_rc.borrow().type_tag().map(|s| s.to_string());
                 if let Some(type_name) = type_name {
-                    let build_res = ctx.borrow_mut().type_registry.rebuild_type_methods(
-                        &type_name,
-                        table_rc.clone(),
-                        ctx,
-                    );
+                    let method_f = {
+                        let b = ctx.borrow();
+                        b.type_registry
+                            .get_type_builders(&type_name)
+                            .map(|(_, method_f)| method_f)
+                    };
+                    let build_res = if let Some(method_f) = method_f {
+                        match method_f(ctx, &table_rc) {
+                            Ok(_) => {
+                                ctx.borrow_mut()
+                                    .register_script_value_tables(&ScriptValue::Table(table_rc.clone()))?;
+                                Ok(ScriptValue::Table(table_rc.clone()))
+                            }
+                            Err(err) => Err(err),
+                        }
+                    } else {
+                        Err(format!("Unknown type: {}", type_name))
+                    };
                     match build_res {
                         Ok(ins) => {
                             // typed table 通常不是内置变量；直接覆盖写入即可
                             ctx.borrow_mut().set_global_val(name, ins);
                         }
                         Err(s) => {
-                            tracing::error!(s);
+                            tracing::error!("{}", s);
+                            return Err(s);
                         }
                     }
                 } else {
                     // untyped table：优先与已存在内置 table 合并
-                    if let Some(existing) = ctx.borrow().get_global_val(name) {
-                        if let Some(dst) = existing.as_table() {
+                    let existing_val = { ctx.borrow().get_global_val(name) };
+                    if let Some(existing_val) = existing_val {
+                        if let Ok(dst) = ctx.borrow().resolve_table_value(&existing_val) {
                             let src_b = table_rc.borrow();
                             dst.borrow_mut().merge_from(&src_b);
                             continue;
@@ -432,6 +631,80 @@ impl ScriptContext {
         ctx_ref: &ContextRef,
         serializable: SerializableContext,
     ) -> Result<(), String> {
-        serializable.to_context(ctx_ref)
+        ctx_ref.borrow_mut().clear_tuid_table_for_load();
+        serializable.to_context(ctx_ref)?;
+        ctx_ref.borrow_mut().rebuild_tuid_table_from_live()
+    }
+}
+
+#[cfg(test)]
+mod tuid_tests {
+    use super::*;
+
+    #[test]
+    fn rebuild_tuid_table_resolves_table_handle() {
+        let ctx = Rc::new(RefCell::new(ScriptContext::new()));
+        ctx.borrow_mut().bind_context_ref(ctx.clone());
+        {
+            let mut m = ctx.borrow_mut();
+            let c = m.alloc_table_rc();
+            let tuid = c.borrow().tuid;
+            let ls = m.alloc_table_rc();
+            ls.borrow_mut().set_int(0, ScriptValue::table_handle(tuid));
+            m.set_global_val("character_alice", ScriptValue::Table(c.clone()));
+            m.set_global_val("character_ls", ScriptValue::Table(ls));
+            m.rebuild_tuid_table_from_live().unwrap();
+            let resolved = m
+                .resolve_table_value(&ScriptValue::table_handle(tuid))
+                .unwrap();
+            assert!(Rc::ptr_eq(&resolved, &c));
+        }
+    }
+
+    #[test]
+    fn serde_serializable_context_preserves_handle() {
+        let ctx = Rc::new(RefCell::new(ScriptContext::new()));
+        ctx.borrow_mut().bind_context_ref(ctx.clone());
+        {
+            let mut m = ctx.borrow_mut();
+            let c = m.alloc_table_rc();
+            c.borrow_mut().set("name", ScriptValue::string("alice"), None);
+            let tuid = c.borrow().tuid;
+            let ls = m.alloc_table_rc();
+            ls.borrow_mut().set_int(0, ScriptValue::table_handle(tuid));
+            m.set_global_val("character_alice", ScriptValue::Table(c));
+            m.set_global_val("character_ls", ScriptValue::Table(ls));
+            m.rebuild_tuid_table_from_live().unwrap();
+        }
+
+        let ser = ScriptContext::serialize(&ctx);
+        let json = json5::to_string(&ser).unwrap();
+
+        let ctx2 = Rc::new(RefCell::new(ScriptContext::new()));
+        ctx2.borrow_mut().bind_context_ref(ctx2.clone());
+        {
+            let mut m = ctx2.borrow_mut();
+            let a = m.alloc_table_rc();
+            let l = m.alloc_table_rc();
+            m.set_global_val("character_alice", ScriptValue::Table(a));
+            m.set_global_val("character_ls", ScriptValue::Table(l));
+            m.rebuild_tuid_table_from_live().unwrap();
+        }
+
+        let loaded: SerializableContext = json5::from_str(&json).unwrap();
+        ScriptContext::deserialize(&ctx2, loaded).unwrap();
+
+        let ls = ctx2
+            .borrow()
+            .get_global_val("character_ls")
+            .unwrap()
+            .as_table()
+            .unwrap();
+        let slot0 = ls.borrow().get_int(0).unwrap();
+        let alice = ctx2.borrow().resolve_table_value(&slot0).unwrap();
+        assert_eq!(
+            alice.borrow().get("name", None).unwrap().as_str(),
+            Some("alice")
+        );
     }
 }

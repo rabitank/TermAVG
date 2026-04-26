@@ -66,8 +66,17 @@ impl Behaviour for BackgroundBehaviour {
     }
     fn on_scene_active(&mut self, ctx: tmj_core::script::ContextRef) -> anyhow::Result<()> {
         let mut vars = self.get_bind_vars(&ctx);
-        self.is_edge = vars.pop().unwrap()?.as_bool().unwrap();
-        let img_path = vars.pop().unwrap()?.as_string().unwrap().clone();
+        let is_edge = vars
+            .pop()
+            .transpose()?
+            .and_then(|v| v.as_bool())
+            .ok_or_else(|| anyhow::anyhow!("{}.{} missing or not bool", BG, Self::BG_IS_EDGE))?;
+        let img_path = vars
+            .pop()
+            .transpose()?
+            .and_then(|v| v.as_string().cloned())
+            .ok_or_else(|| anyhow::anyhow!("{}.{} missing or not string", BG, Self::BG_IMAGE))?;
+        self.is_edge = is_edge;
         self.img_trans_ani.reset();
         self.img_trans_ani.new_image = Self::trans_string_path(img_path);
         Ok(())
@@ -82,7 +91,11 @@ impl Behaviour for BackgroundBehaviour {
         ctx: &tmj_core::script::ContextRef,
     ) -> anyhow::Result<Vec<VisualElement>> {
         let mut args = self.get_bind_vars(ctx);
-        let is_edge_show = args.pop().unwrap()?.as_bool().unwrap();
+        let is_edge_show = args
+            .pop()
+            .transpose()?
+            .and_then(|v| v.as_bool())
+            .ok_or_else(|| anyhow::anyhow!("bg edge bind failed"))?;
         let area = logical_area();
 
         let [up, _, down] = area.layout(&Layout::vertical([

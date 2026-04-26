@@ -52,8 +52,13 @@ impl Behaviour for ParagraphBehaviour {
         self.typewriter_ani.is_animing()
     }
     fn on_scene_active(&mut self, _ctx: tmj_core::script::ContextRef) -> anyhow::Result<()> {
-        let content = _ctx.borrow().get_val(Self::PARAGRAPH_CONTENT).ok_or(anyhow::anyhow!("paragraph content get failed"))?;
-        let content = content.as_str().unwrap();
+        let content = _ctx
+            .borrow()
+            .get_val(Self::PARAGRAPH_CONTENT)
+            .ok_or(anyhow::anyhow!("paragraph content get failed"))?;
+        let content = content
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("paragraph.content is not a string"))?;
         self.typewriter_ani.target_text = content.to_string();
         self.typewriter_ani.start_text = content.to_string();
         self.typewriter_ani.run_time = std::time::Duration::ZERO;

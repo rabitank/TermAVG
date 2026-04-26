@@ -154,17 +154,26 @@ impl CommandExecutor {
                     let ctx = context.borrow();
                     ctx.parse_args(args)
                 };
-                // 0. 如果command是类名
-                if { context.borrow().type_registry.contains(command) } {
-                    match {
-                        context.borrow().type_registry.build_type_instance(
-                            command,
-                            args.to_vec(),
-                            &context,
-                        )
-                    } {
-                        Ok(val) => {
-                            context.borrow_mut().set_global_val(name, val);
+                // 0. 如果 command 是已注册类型，先复制构建器函数，再执行构建，避免 RefCell 重入借用
+                // 这里纯ai解决不了refcell的借用问题内联了build_type_instance函数,不过只调用一次因此随便了
+                let type_builders = {
+                    let ctx = context.borrow();
+                    ctx.type_registry.get_type_builders(command)
+                };
+                if let Some((data_f, method_f)) = type_builders {
+                    let mut table = data_f(&mut context.borrow_mut(), args.to_vec());
+                    table.set_type_tag(command);
+                    let table_rc = Rc::new(RefCell::new(table));
+                    match method_f(context, &table_rc).and_then(|_| {
+                        context
+                            .borrow_mut()
+                            .register_script_value_tables(&ScriptValue::Table(table_rc.clone()))?;
+                        Ok(())
+                    }) {
+                        Ok(_) => {
+                            context
+                                .borrow_mut()
+                                .set_global_val(name, ScriptValue::Table(table_rc));
                             ExecuteStatus::Completed
                         }
                         Err(s) => ExecuteStatus::Error(format!(
@@ -309,10 +318,15 @@ impl CommandExecutor {
             drop(ctx);
 
             match obj {
-                ScriptValue::Table(table) => {
+                ScriptValue::Table(_) | ScriptValue::TableHandle(_) => {
+                    let table = match context.borrow().resolve_table_value(&obj) {
+                        Ok(t) => t,
+                        Err(e) => return ExecuteStatus::Error(e),
+                    };
+                    let ctx_opt = context.borrow().context_ref();
                     let old_value = table
                         .borrow()
-                        .get(&field_path)
+                        .get(&field_path, ctx_opt.as_ref())
                         .unwrap_or(ScriptValue::nil());
 
                     if args.is_empty() {
@@ -321,7 +335,9 @@ impl CommandExecutor {
                         );
                     }
 
-                    table.borrow_mut().set(&field_path, args[0].clone());
+                    table
+                        .borrow_mut()
+                        .set(&field_path, args[0].clone(), ctx_opt.as_ref());
 
                     if is_once {
                         let mut ctx = context.borrow_mut();

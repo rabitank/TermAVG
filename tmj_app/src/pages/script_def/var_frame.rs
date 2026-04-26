@@ -42,9 +42,9 @@ impl BaseVariable for VFrame {
                         .borrow()
                         .get_global_val(FRAME)
                         .ok_or(anyhow::anyhow!("frame not found"))?
-                        .as_table()
+                        .as_table_or_resolve(ctx)
                         .ok_or(anyhow::anyhow!("frame is not table"))?;
-                    frame.borrow_mut().set(VISIBLE, ScriptValue::bool(true));
+                    frame.borrow_mut().set(VISIBLE, ScriptValue::bool(true), None);
                     Ok(ScriptValue::Table(frame))
                 })
                 .map_err(|e| anyhow::anyhow!(e))?;
@@ -57,9 +57,9 @@ impl BaseVariable for VFrame {
                         .borrow()
                         .get_global_val(FRAME)
                         .ok_or(anyhow::anyhow!("frame not found"))?
-                        .as_table()
+                        .as_table_or_resolve(ctx)
                         .ok_or(anyhow::anyhow!("frame is not table"))?;
-                    frame.borrow_mut().set(VISIBLE, ScriptValue::bool(false));
+                    frame.borrow_mut().set(VISIBLE, ScriptValue::bool(false), None);
                     Ok(ScriptValue::Table(frame))
                 })
                 .map_err(|e| anyhow::anyhow!(e))?;
@@ -76,9 +76,9 @@ impl BaseVariable for VFrame {
                         .borrow()
                         .get_global_val(FRAME)
                         .ok_or(anyhow::anyhow!("frame not found"))?
-                        .as_table()
+                        .as_table_or_resolve(ctx)
                         .ok_or(anyhow::anyhow!("frame is not table"))?;
-                    frame.borrow_mut().set(MODE, ScriptValue::string(mode));
+                    frame.borrow_mut().set(MODE, ScriptValue::string(mode), None);
                     Ok(ScriptValue::Table(frame))
                 })
                 .map_err(|e| anyhow::anyhow!(e))?;
