@@ -1,46 +1,90 @@
+use std::{path::PathBuf, time};
+
 use ratatui::{
     layout::{Constraint, Layout},
     widgets::Wrap,
 };
-use tmj_core::script::TypeName;
+use tmj_core::{
+    pathes,
+    script::{ContextRef, TypeName},
+};
 
 use crate::{
     LAYOUT,
     art::theme::THEME,
     pages::{
+        dialogue::DialogueScene,
         pipeline::{
+            Behaviour,
+            animation::{Animation, img_trans::AniImgTrans},
             logical_area,
-            PipeStage,
-            ve_utils::clear_animations_by_prefix,
-            visual_element::{VisualElement, VisualElementKind},
+            visual_element::{VisualElement, VisualElementCustomDrawer, VisualElementKind},
         },
-        script_def::env::BG ,
+        script_def::env::BG,
     },
 };
 
-#[derive(TypeName)]
-pub struct BackgroundStage;
+#[derive(TypeName, Default)]
+pub struct BackgroundBehaviour {
+    is_edge: bool,
+    img_trans_ani: AniImgTrans,
+}
 
-impl PipeStage for BackgroundStage {
-    fn binding_vars() -> &'static [&'static str] {
+impl BackgroundBehaviour {
+    fn trans_string_path(s: String) -> Option<PathBuf> {
+        if s.is_empty(){
+            None
+        } else {
+            Some(pathes::path(s))
+        }
+    }
+    pub fn export_trans_to(&mut self, new_img_path: String, duration: f64) {
+        self.img_trans_ani.old_image = self.img_trans_ani.new_image.clone();
+        self.img_trans_ani.new_image = Self::trans_string_path(new_img_path.clone());
+        self.img_trans_ani.anim_time = time::Duration::from_secs_f64(duration);
+        self.img_trans_ani.run_time = time::Duration::ZERO;
+    }
+    pub fn export_set(&mut self, new_img_path: String) {
+        self.img_trans_ani.old_image = self.img_trans_ani.new_image.clone();
+        self.img_trans_ani.new_image = Self::trans_string_path(new_img_path.clone());
+        self.img_trans_ani.anim_time = time::Duration::ZERO;
+        self.img_trans_ani.run_time = time::Duration::ZERO;
+    }
+
+    pub fn export_show_edge(&mut self) {
+        self.is_edge = true;
+    }
+
+    pub fn export_hide_edge(&mut self) {
+        self.is_edge = false;
+    }
+}
+
+impl Behaviour for BackgroundBehaviour {
+    fn is_animating(&self) -> bool {
+        self.img_trans_ani.is_animing()
+    }
+    fn on_scene_active(&mut self, ctx: tmj_core::script::ContextRef) -> anyhow::Result<()> {
+        let mut vars = self.get_bind_vars(&ctx);
+        self.is_edge = vars.pop().unwrap()?.as_bool().unwrap();
+        let img_path = vars.pop().unwrap()?.as_string().unwrap().clone();
+        self.img_trans_ani.reset();
+        self.img_trans_ani.new_image = Self::trans_string_path(img_path);
+        Ok(())
+    }
+
+    fn binding_vars(&self) -> &'static [&'static str] {
         &[BG, Self::BG_IMAGE, Self::BG_IS_EDGE]
     }
 
-}
-
-impl BackgroundStage {
-    pub const BG_IMAGE: &'static str = constcat::concat!(BG, ".", crate::pages::script_def::var_bg::IMAGE);
-    pub const BG_IS_EDGE: &'static str = constcat::concat!(BG, ".", crate::pages::script_def::var_bg::IS_EDGE);
-    pub const VE_BG: &'static str = Self::BG_IMAGE;
-    pub const VE_EDGE_TOP: &'static str = "bg.edge.top";
-    pub const VE_EDGE_BOTTOM: &'static str = "bg.edge.bottom";
-
-    pub fn build_elements(ctx: &tmj_core::script::ContextRef) -> anyhow::Result<Vec<VisualElement>> {
-        let mut args = Self::get_script_vars(ctx);
+    fn build_elements(
+        &self,
+        ctx: &tmj_core::script::ContextRef,
+    ) -> anyhow::Result<Vec<VisualElement>> {
+        let mut args = self.get_bind_vars(ctx);
         let is_edge_show = args.pop().unwrap()?.as_bool().unwrap();
-        let bg_image=  args.pop().unwrap()?.as_string().unwrap().clone();
         let area = logical_area();
-        
+
         let [up, _, down] = area.layout(&Layout::vertical([
             Constraint::Length(LAYOUT.vertical_dark_edge),
             Constraint::Fill(1),
@@ -53,8 +97,8 @@ impl BackgroundStage {
                 z_index: 0,
                 rect: area,
                 text_wrap: Some(Wrap { trim: false }),
-                kind: VisualElementKind::Image {
-                    source: bg_image.to_string(),
+                kind: VisualElementKind::Custom {
+                    drawer: VisualElementCustomDrawer::from(|_, _, _| Ok(())),
                 },
                 style: THEME.dialouge.background,
                 ..Default::default()
@@ -84,50 +128,51 @@ impl BackgroundStage {
         ])
     }
 
-    pub fn update_elements(
-        ctx: &tmj_core::script::ContextRef,
-        elements: &mut [VisualElement],
+    fn update_elements(
+        &self,
+        _screen: &DialogueScene,
+        _ctx: &tmj_core::script::ContextRef,
+        elements: &mut Vec<VisualElement>,
     ) -> anyhow::Result<()> {
-        let area = logical_area();
-        let mut vars = Self::get_script_vars(ctx);
-        let use_v_edge = vars.pop().unwrap()?;
-        let bgimg_path = vars.pop().unwrap()?;
         if let Some(bg) = elements.iter_mut().find(|x| x.name == Self::VE_BG) {
-            if !bg.is_animated {
-                bg.rect = area;
-                if let VisualElementKind::Image { source } = &mut bg.kind {
-                    *source = bgimg_path.as_string().cloned().unwrap_or_default();
-                }
-            }
-        if bgimg_path.is_nil() || bgimg_path.as_str().unwrap_or("").is_empty(){
-            bg.fill_before_draw = true;
-        } else {
-            bg.fill_before_draw = false;
+            self.img_trans_ani.apply_to_ve(bg);
         }
-        }
-        
-        let edge_visible = use_v_edge.as_bool().unwrap_or(true);
         if let Some(top) = elements.iter_mut().find(|x| x.name == Self::VE_EDGE_TOP) {
-            if !top.is_animated {
-                //@todo 
-            }
-            top.visible = edge_visible;
+            top.visible = self.is_edge;
         }
         if let Some(bottom) = elements.iter_mut().find(|x| x.name == Self::VE_EDGE_BOTTOM) {
-            if !bottom.is_animated {
-                //@todo
-            }
-            bottom.visible = edge_visible;
+            bottom.visible = self.is_edge;
         }
+
         Ok(())
     }
 
-    pub fn stage_clear(
-        _ctx: &tmj_core::script::ContextRef,
-        elements: &mut [VisualElement],
-        _area: ratatui::prelude::Rect,
-    ) -> anyhow::Result<()> {
-        clear_animations_by_prefix(elements, "bg.");
+    fn tick_update(&mut self, _ctx: ContextRef, delta_time: std::time::Duration) {
+        self.img_trans_ani.update(delta_time);
+    }
+
+    fn on_force_over_animation(&mut self) -> anyhow::Result<()> {
+        self.img_trans_ani.force_over();
         Ok(())
     }
+
+    fn on_end_dialouge(&mut self) -> anyhow::Result<()> {
+        self.img_trans_ani.reset();
+        Ok(())
+    }
+
+    fn on_end_session(&mut self, _ctx: tmj_core::script::ContextRef) -> anyhow::Result<()> {
+        self.img_trans_ani.reset();
+        Ok(())
+    }
+}
+
+impl BackgroundBehaviour {
+    pub const BG_IMAGE: &'static str =
+        constcat::concat!(BG, ".", crate::pages::script_def::var_bg::M_IMAGE);
+    pub const BG_IS_EDGE: &'static str =
+        constcat::concat!(BG, ".", crate::pages::script_def::var_bg::M_IS_EDGE);
+    pub const VE_BG: &'static str = Self::BG_IMAGE;
+    pub const VE_EDGE_TOP: &'static str = "bg.edge.top";
+    pub const VE_EDGE_BOTTOM: &'static str = "bg.edge.bottom";
 }

@@ -57,7 +57,7 @@ pub static SETTING: LazyLock<GameSetting> = LazyLock::new(|| {
 
 impl Default for GameSetting {
     fn default() -> Self {
-        let resolution = (240, 160 / 2);
+        let resolution = (240, 67);
         Self {
             resolution: resolution, // 3: 2, 但是注意这里的尺寸也是按照字符宽高比为1:2来计算的
             is_force_skipable: false,

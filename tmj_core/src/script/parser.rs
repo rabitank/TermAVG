@@ -299,7 +299,7 @@ impl Parser {
         }
 
         // 解析后续参数 
-        while !self.check(&Token::Newline) && !self.check(&Token::Arrow){
+        while !self.check(&Token::Newline) && !self.check(&Token::Arrow) {
             args.push(self.parse_value()?);
             if self.is_at_end() {
                 break;

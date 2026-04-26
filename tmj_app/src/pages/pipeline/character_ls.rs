@@ -1,17 +1,19 @@
-use ratatui::{layout::Rect, widgets::Wrap};
+use ratatui::layout::Rect;
+use tmj_core::script::ContextRef;
 use std::collections::HashSet;
 use std::ops::{Div, Mul};
 use tmj_core::{
     script::{ScriptValue, TabelGet, TypeName},
 };
 
+use crate::pages::pipeline::Behaviour;
 use crate::{
     LAYOUT,
     pages::{
-        pipeline::{PipeStage, logical_area},
-        pipeline::ve_utils::clear_animations_by_prefix,
-        pipeline::visual_element::{
-            VisualElement, VisualElementKind,
+        dialogue::DialogueScene,
+        pipeline::{
+            logical_area,
+            visual_element::{VisualElement, VisualElementKind},
         },
         script_def::{
             character::{self},
@@ -20,20 +22,102 @@ use crate::{
     },
 };
 
-#[derive(TypeName)]
+#[derive(TypeName, Default)]
 pub struct CharactersStage;
 
-impl PipeStage for CharactersStage {
-    fn binding_vars() -> &'static [&'static str] {
+impl Behaviour for CharactersStage {
+    fn binding_vars(&self) -> &'static [&'static str] {
         &[CHARACTER_LS]
     }
 
+    fn build_elements(
+        &self,
+        ctx: &tmj_core::script::ContextRef,
+    ) -> anyhow::Result<Vec<VisualElement>> {
+        let area = logical_area();
+        let characters = read_character_entries(ctx)?;
+        let character_num = characters.len();
+        let mut elements = Vec::new();
+        for (idx, (ls_id, c)) in characters.into_iter().enumerate() {
+            let c_rect = character_rect_at(idx, character_num, area);
+            let current_stand_img = match read_stand_image(&c)? {
+                Some(v) => v,
+                None => continue,
+            };
+            elements.push(make_character_element(ls_id, c_rect, current_stand_img));
+        }
+        Ok(elements)
+    }
+
+    fn update_elements(
+        &self,
+        _screen: &DialogueScene,
+        ctx: &tmj_core::script::ContextRef,
+        elements: &mut Vec<VisualElement>,
+    ) -> anyhow::Result<()> {
+        let area = logical_area();
+        let characters = read_character_entries(ctx)?;
+        let character_num = characters.len();
+        if character_num == 0 {
+            elements.retain(|ve| !ve.name.starts_with("character_"));
+            return Ok(());
+        }
+
+        let mut desired = Vec::new();
+        for (idx, (ls_id, c)) in characters.iter().enumerate() {
+            let rect = character_rect_at(idx, character_num, area);
+            let source = match read_stand_image(c)? {
+                Some(v) => v,
+                None => continue,
+            };
+            desired.push((*ls_id, rect, source));
+        }
+
+        let desired_names: HashSet<String> = desired
+            .iter()
+            .map(|(ls_id, _, _)| format!("character_{ls_id}"))
+            .collect();
+
+        elements.retain(|ve| !ve.name.starts_with("character_") || desired_names.contains(&ve.name));
+
+        for (ls_id, rect, source) in desired {
+            let ve_name = format!("character_{ls_id}");
+            if let Some(ve) = elements.iter_mut().find(|x| x.name == ve_name) {
+                ve.visible = true;
+                ve.rect = rect;
+                ve.z_index = 100 + ls_id as i32;
+                if let VisualElementKind::Image { source: current } = &mut ve.kind {
+                    *current = source;
+                } else {
+                    ve.kind = VisualElementKind::Image { source };
+                }
+            } else {
+                elements.push(make_character_element(ls_id, rect, source));
+            }
+        }
+        Ok(())
+    }
+
+    fn tick_update(&mut self, _ctx: ContextRef, _delta_time: std::time::Duration) {
+    }
+
+    fn on_force_over_animation(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn on_end_dialouge(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn on_end_session(&mut self, _ctx: tmj_core::script::ContextRef) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
 fn read_character_entries(
     ctx: &tmj_core::script::ContextRef,
 ) -> anyhow::Result<Vec<(i64, ScriptValue)>> {
-    let character_ls = CharactersStage::get_script_vars(&ctx).pop().unwrap()?;
+    let character_ls = CharactersStage.get_bind_vars(ctx).pop().unwrap()?;
     let character_ls = character_ls
         .as_table()
         .ok_or(anyhow::anyhow!("{} should be table", CHARACTER_LS))?;
@@ -100,81 +184,3 @@ fn make_character_element(ls_id: i64, rect: Rect, source: String) -> VisualEleme
     }
 }
 
-impl CharactersStage {
-    pub fn build_elements(
-        ctx: &tmj_core::script::ContextRef,
-    ) -> anyhow::Result<Vec<VisualElement>> {
-        let area = logical_area();
-        let characters = read_character_entries(ctx)?;
-        let character_num = characters.len();
-        let mut elements = Vec::new();
-        for (idx, (ls_id, c)) in characters.into_iter().enumerate() {
-            let c_rect = character_rect_at(idx, character_num, area);
-            let current_stand_img = match read_stand_image(&c)? {
-                Some(v) => v,
-                None => continue,
-            };
-            elements.push(make_character_element(ls_id, c_rect, current_stand_img));
-        }
-        Ok(elements)
-    }
-
-    pub fn update_elements(
-        ctx: &tmj_core::script::ContextRef,
-        elements: &mut Vec<VisualElement>,
-    ) -> anyhow::Result<()> {
-        let area = logical_area();
-        let characters = read_character_entries(ctx)?;
-        let character_num = characters.len();
-        if character_num == 0 {
-            elements.retain(|ve| !ve.name.starts_with("character_"));
-            return Ok(());
-        }
-
-        let mut desired = Vec::new();
-        for (idx, (ls_id, c)) in characters.iter().enumerate() {
-            let rect = character_rect_at(idx, character_num, area);
-            let source = match read_stand_image(c)? {
-                Some(v) => v,
-                None => continue,
-            };
-            desired.push((*ls_id, rect, source));
-        }
-
-        let desired_names: HashSet<String> = desired
-            .iter()
-            .map(|(ls_id, _, _)| format!("character_{ls_id}"))
-            .collect();
-
-        elements.retain(|ve| !ve.name.starts_with("character_") || desired_names.contains(&ve.name));
-
-        for (ls_id, rect, source) in desired {
-            let ve_name = format!("character_{ls_id}");
-            if let Some(ve) = elements.iter_mut().find(|x| x.name == ve_name) {
-                if ve.is_animated {
-                    continue;
-                }
-                ve.visible = true;
-                ve.rect = rect;
-                ve.z_index = 100 + ls_id as i32;
-                if let VisualElementKind::Image { source: current } = &mut ve.kind {
-                    *current = source;
-                } else {
-                    ve.kind = VisualElementKind::Image { source };
-                }
-            } else {
-                elements.push(make_character_element(ls_id, rect, source));
-            }
-        }
-        Ok(())
-    }
-
-    pub fn stage_clear(
-        _ctx: &tmj_core::script::ContextRef,
-        elements: &mut [VisualElement],
-        _area: ratatui::prelude::Rect,
-    ) -> anyhow::Result<()> {
-        clear_animations_by_prefix(elements, "character_");
-        Ok(())
-    }
-}

@@ -42,6 +42,7 @@ rodio = { version = "0.20", features = [ "vorbis" ] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
 
+educe = { version = "0.6.0"}
 
 [dependencies]
 tmj_core = { path = "tmj_core" }

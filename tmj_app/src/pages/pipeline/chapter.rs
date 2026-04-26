@@ -1,13 +1,15 @@
 use constcat;
 use ratatui::{layout::Alignment, widgets::Wrap};
-use tmj_core::script::TypeName;
+use tmj_core::script::{ContextRef, TypeName};
 
 use crate::{
     art::theme::THEME,
     pages::{
+        dialogue::DialogueScene,
         pipeline::{
+            Behaviour,
+            animation::{Animation, alpha_shift::AniAlpha},
             logical_area,
-            PipeStage,
             visual_element::{VisualElement, VisualElementKind},
         },
         script_def::env::CHAPTER,
@@ -15,40 +17,55 @@ use crate::{
 };
 
 #[derive(TypeName)]
-pub struct ChapterStage {}
+pub struct ChapterBehaviour {
+    title: String,
+    subtitle: String,
+    title_alpha_ani: AniAlpha,
+    subtitle_alpha_ani: AniAlpha,
+}
 
-impl PipeStage for ChapterStage {
-    fn binding_vars() -> &'static [&'static str] {
-        &[
-            Self::CHAPTER_TITLE,
-            Self::CHAPTER_SUBTITLE,
-            Self::CHAPTER_ALPHA,
-            Self::CHAPTER_ALPHA_SPEED,
-        ]
+impl Default for ChapterBehaviour {
+    fn default() -> Self {
+        Self {
+            title: Default::default(),
+            subtitle: Default::default(),
+            title_alpha_ani: Default::default(),
+            subtitle_alpha_ani: Default::default(),
+        }
     }
 }
 
-impl ChapterStage {
-    pub const CHAPTER_TITLE: &'static str =
-        constcat::concat!(CHAPTER, ".", crate::pages::script_def::var_chapter::TITLE);
-    pub const CHAPTER_SUBTITLE: &'static str = constcat::concat!(
-        CHAPTER,
-        ".",
-        crate::pages::script_def::var_chapter::SUBTITLE
-    );
-    pub const CHAPTER_ALPHA: &'static str =
-        constcat::concat!(CHAPTER, ".", crate::pages::script_def::var_chapter::ALPHA);
-        pub const CHAPTER_ALPHA_SPEED: &'static str =
-        constcat::concat!(CHAPTER, ".", crate::pages::script_def::var_chapter::ALPHA_SPEED);
+impl ChapterBehaviour {
+    fn export_show_title(&mut self, show_time: std::time::Duration, title: String) {
+        self.title = title;
+        self.title_alpha_ani.reset();
+        self.title_alpha_ani.start_alpha = 0.0;
+        self.title_alpha_ani.target_alpha = 1.0;
+        self.title_alpha_ani.anim_time = show_time;
+    }
 
-    pub fn build_elements(ctx: &tmj_core::script::ContextRef) -> anyhow::Result<Vec<VisualElement>> {
-        let mut args = Self::get_script_vars(ctx);
+    fn export_show_sub_title(&mut self, show_time: std::time::Duration, title: String) {
+        self.subtitle = title;
+        self.subtitle_alpha_ani.reset();
+        self.subtitle_alpha_ani.start_alpha = 0.0;
+        self.subtitle_alpha_ani.target_alpha = 1.0;
+        self.subtitle_alpha_ani.anim_time = show_time;
+    }
+}
 
-        let alpha_speed = args.pop().unwrap()?.as_float().unwrap();
-        let alpha = args.pop().unwrap()?.as_float().unwrap();
-        let subtitle_content = args.pop().unwrap()?.as_string().unwrap().clone();
-        let title_content= args.pop().unwrap()?.as_string().unwrap().clone();
+impl Behaviour for ChapterBehaviour {
+    fn binding_vars(&self) -> &'static [&'static str] {
+        &[]
+    }
 
+    fn is_animating(&self) -> bool {
+        self.title_alpha_ani.is_animing() || self.subtitle_alpha_ani.is_animing()
+    }
+
+    fn build_elements(
+        &self,
+        _ctx: &tmj_core::script::ContextRef,
+    ) -> anyhow::Result<Vec<VisualElement>> {
         let area = logical_area();
         let title_rect = crate::layout::Layout::ltwh2rect(area, &crate::LAYOUT.chapter_title_ltwh);
         let subtitle_rect =
@@ -58,72 +75,108 @@ impl ChapterStage {
             VisualElement {
                 name: Self::CHAPTER_TITLE.to_string(),
                 visible: true,
-                alpha,
-                alpha_speed,
+                alpha: 0.0,
                 z_index: 1,
                 rect: title_rect,
                 text_alignment: Some(Alignment::Center),
                 text_wrap: Some(Wrap { trim: false }),
-                kind: VisualElementKind::Text { content: title_content.into() },
+                kind: VisualElementKind::Text { content: "".into() },
                 style: THEME.dialouge.charpter_title,
                 ..Default::default()
             },
             VisualElement {
                 name: Self::CHAPTER_SUBTITLE.to_string(),
                 visible: true,
-                alpha,
-                alpha_speed,
+                alpha: 0.0,
                 z_index: 2,
                 rect: subtitle_rect,
                 text_alignment: Some(Alignment::Center),
                 text_wrap: Some(Wrap { trim: false }),
-                kind: VisualElementKind::Text { content: subtitle_content.into() },
+                kind: VisualElementKind::Text { content: "".into() },
                 style: THEME.dialouge.charpter_subtitle,
                 ..Default::default()
             },
         ])
     }
 
-    pub fn update_elements(
+    fn update_elements(
+        &self,
+        _screen: &DialogueScene,
         ctx: &tmj_core::script::ContextRef,
-        elements: &mut [VisualElement],
+        elements: &mut Vec<VisualElement>,
     ) -> anyhow::Result<()> {
-        let mut vars = Self::get_script_vars(ctx);
-        let alpha_speed = vars.pop().unwrap()?.as_float().unwrap();
-        let alpha = vars.pop().unwrap()?.as_float().unwrap();
-        let subtitle_content = vars.pop().unwrap()?;
-        let title_content = vars.pop().unwrap()?;
+
         if let Some(title) = elements.iter_mut().find(|x| x.name == Self::CHAPTER_TITLE) {
-            if !title.is_animated {
+            self.title_alpha_ani.apply_to_ve(title);
+
+            if self.title.is_empty() {
+                title.visible = false;
+            } else {
                 if let VisualElementKind::Text { content } = &mut title.kind {
-                    *content = title_content
-                        .as_string()
-                        .ok_or(anyhow::anyhow!("title content should be str"))?
-                        .to_string();
-                    title.alpha = alpha;
-                    title.alpha_speed = alpha_speed;
+                    *content = self.title.clone();
                 }
             }
-
         }
 
-        let subtitle_content = subtitle_content
-            .as_string()
-            .ok_or(anyhow::anyhow!("subtitle content should be str"))?
-            .to_string();
-        if let Some(subtitle_ve) = elements
+        if let Some(subtitle) = elements
             .iter_mut()
             .find(|x| x.name == Self::CHAPTER_SUBTITLE)
         {
-            if !subtitle_ve.is_animated {
-                if let VisualElementKind::Text { content } = &mut subtitle_ve.kind {
-                    *content = subtitle_content;
-                    subtitle_ve.alpha = alpha;
-                    subtitle_ve.alpha_speed = alpha_speed;
+            self.subtitle_alpha_ani.apply_to_ve(subtitle);
+            if self.subtitle.is_empty() {
+                subtitle.visible = false;
+            } else {
+                if let VisualElementKind::Text { content } = &mut subtitle.kind {
+                    *content = self.subtitle.clone();
                 }
             }
-
         }
         Ok(())
     }
+
+    fn tick_update(&mut self, _ctx: ContextRef, delta_time: std::time::Duration) {
+        self.title_alpha_ani.update(delta_time);
+        self.subtitle_alpha_ani.update(delta_time);
+    }
+
+    fn on_force_over_animation(&mut self) -> anyhow::Result<()> {
+        self.title_alpha_ani.force_over();
+        self.subtitle_alpha_ani.force_over();
+        Ok(())
+    }
+
+    fn on_end_dialouge(&mut self) -> anyhow::Result<()> {
+        self.title = "".into();
+        self.subtitle = "".into();
+        self.title_alpha_ani.reset();
+        self.subtitle_alpha_ani.reset();
+        Ok(())
+    }
+
+    fn on_end_session(&mut self, _ctx: tmj_core::script::ContextRef) -> anyhow::Result<()> {
+        self.title = "".into();
+        self.subtitle = "".into();
+        self.title_alpha_ani.target_alpha = 0.0;
+        self.subtitle_alpha_ani.target_alpha = 0.0;
+        self.title_alpha_ani.reset();
+        self.subtitle_alpha_ani.reset();
+        Ok(())
+    }
+}
+
+impl ChapterBehaviour {
+    pub const CHAPTER_TITLE: &'static str =
+        constcat::concat!(CHAPTER, ".", crate::pages::script_def::var_chapter::TITLE);
+    pub const CHAPTER_SUBTITLE: &'static str = constcat::concat!(
+        CHAPTER,
+        ".",
+        crate::pages::script_def::var_chapter::SUBTITLE
+    );
+    pub const CHAPTER_ALPHA: &'static str =
+        constcat::concat!(CHAPTER, ".", crate::pages::script_def::var_chapter::ALPHA);
+    pub const CHAPTER_ALPHA_SPEED: &'static str = constcat::concat!(
+        CHAPTER,
+        ".",
+        crate::pages::script_def::var_chapter::ALPHA_SPEED
+    );
 }

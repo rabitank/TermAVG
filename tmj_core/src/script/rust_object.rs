@@ -55,7 +55,7 @@ impl Clone for RustObjectWrapper {
 }
 
 /// Rust 对象暴露给脚本的 trait
-pub trait RustObjectTrait: Any + Send{
+pub trait RustObjectTrait: Any {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 

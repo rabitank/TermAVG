@@ -1,29 +1,75 @@
-use ratatui::widgets::Wrap;
+use std::{any::Any, collections::HashMap};
+
 use tmj_core::script::TypeName;
 
 use crate::pages::{
+    dialogue::DialogueScene,
     pipeline::{
+        Behaviour,
+        animation::{Animation, AnyAnimation},
         logical_area,
-        PipeStage,
-        ve_utils::clear_animations_by_prefix,
         visual_element::{VisualElement, VisualElementKind},
     },
     script_def::{env::LAYERS, var_layer},
 };
 
-#[derive(TypeName)]
-pub struct LayersStage;
+trait AniCast {
+    fn get_ani<T>(&self, name: &String) -> anyhow::Result<&T>
+    where
+        T: Animation + Any;
+    fn get_ani_mut<T>(&mut self, name: &String) -> anyhow::Result<&mut T>
+    where
+        T: Animation + Any;
+}
 
-impl PipeStage for LayersStage {
-    fn binding_vars() -> &'static [&'static str] {
+pub type AnyAnimationMap = HashMap<String, Box<dyn AnyAnimation>>;
+
+impl AniCast for HashMap<String, Box<dyn AnyAnimation>> {
+    fn get_ani<T>(&self, name: &String) -> anyhow::Result<&T>
+    where
+        T: Animation + Any,
+    {
+        let res = self
+            .get(name)
+            .ok_or(anyhow::anyhow!("{name} not in Animation Map"))?;
+        let r = res.as_ref() as &dyn Any;
+        r.downcast_ref::<T>().ok_or(anyhow::anyhow!(
+            "{name} Animation is not a {} instance",
+            std::any::type_name::<T>()
+        ))
+    }
+
+    fn get_ani_mut<T>(&mut self, name: &String) -> anyhow::Result<&mut T>
+    where
+        T: Animation + Any,
+    {
+        let res = self
+            .get_mut(name)
+            .ok_or(anyhow::anyhow!("{name} not in Animation Map"))?;
+        let r = res.as_mut() as &mut dyn Any;
+        r.downcast_mut::<T>().ok_or(anyhow::anyhow!(
+            "{name} Animation is not a {} instance",
+            std::any::type_name::<T>()
+        ))
+    }
+}
+
+#[derive(TypeName, Default)]
+pub struct LayerBehaviour {
+    anim_effect_map: HashMap<String, Box<dyn Animation>>,
+}
+
+impl Behaviour for LayerBehaviour {
+    fn binding_vars(&self) -> &'static [&'static str] {
         &[LAYERS]
     }
 
-}
-
-impl LayersStage {
-    pub fn build_elements(ctx: &tmj_core::script::ContextRef) -> anyhow::Result<Vec<VisualElement>> {
-        let layers = Self::get_script_vars(ctx)
+    fn build_elements(
+        &self,
+        ctx: &tmj_core::script::ContextRef,
+    ) -> anyhow::Result<Vec<VisualElement>> {
+        let layers = self
+            .get_bind_vars(ctx)
             .pop()
             .unwrap()?
             .as_table()
@@ -60,12 +106,15 @@ impl LayersStage {
         Ok(out)
     }
 
-    pub fn update_elements(
+    fn update_elements(
+        &self,
+        _screen: &DialogueScene,
         ctx: &tmj_core::script::ContextRef,
-        elements: &mut [VisualElement],
+        elements: &mut Vec<VisualElement>,
     ) -> anyhow::Result<()> {
         let area = logical_area();
-        let layers = Self::get_script_vars(ctx)
+        let layers = self
+            .get_bind_vars(ctx)
             .pop()
             .unwrap()?
             .as_table()
@@ -97,28 +146,29 @@ impl LayersStage {
                     ve.visible = false;
                     continue;
                 }
-                if !ve.is_animated {
-                    ve.visible = visible;
-                    ve.rect = area;
-                    if let VisualElementKind::Image { source } = &mut ve.kind {
-                        *source = layer
-                            .borrow()
-                            .get(var_layer::SOURCE)
-                            .and_then(|x| x.as_str().map(|s| s.to_string()))
-                            .unwrap_or_default();
-                    }
+                ve.visible = visible;
+                ve.rect = area;
+                if let VisualElementKind::Image { source } = &mut ve.kind {
+                    *source = layer
+                        .borrow()
+                        .get(var_layer::SOURCE)
+                        .and_then(|x| x.as_str().map(|s| s.to_string()))
+                        .unwrap_or_default();
                 }
             }
         }
         Ok(())
     }
 
-    pub fn stage_clear(
-        _ctx: &tmj_core::script::ContextRef,
-        elements: &mut [VisualElement],
-        _area: ratatui::prelude::Rect,
-    ) -> anyhow::Result<()> {
-        clear_animations_by_prefix(elements, "layer.");
+    fn on_force_over_animation(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn on_end_dialouge(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn on_end_session(&mut self, _ctx: tmj_core::script::ContextRef) -> anyhow::Result<()> {
         Ok(())
     }
 }

@@ -18,6 +18,7 @@ pub struct Layout {
     pub short_key_ltwh: (u16, u16, u16, u16),
     pub chapter_title_ltwh: (u16, u16, u16, u16),
     pub chapter_subtitle_ltwh: (u16, u16, u16, u16),
+    pub paragraph_ltwh: (u16, u16, u16, u16),
 }
 
 impl Layout {
@@ -73,6 +74,7 @@ impl Default for Layout {
             short_key_ltwh: (60, 66, 144, 1),
             chapter_title_ltwh: (60, 27, 120, 5),
             chapter_subtitle_ltwh: (60, 32, 120, 1),
+            paragraph_ltwh: (90, 7, 60, 49),
         }
     }
 }

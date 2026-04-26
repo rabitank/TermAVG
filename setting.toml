@@ -1,18 +1,7 @@
-resolution = [240, 80]
+resolution = [240, 67]
 is_force_skipable = false
 save_dir = "save"
 entre_script = "resource/script_example.fss"
 default_bg_img = "resource/bg_0.png"
 default_face_img = "resource/default_face_img.png"
 preprogress_script = ["resource/script_example.fs"]
-
-[layout]
-character_twh = [16, 80, 56] # 16, 56 ,112
-vertical_dark_edge = 8 # 12
-two_character_spec = 26
-x_character_spec = 16
-frame_face_ltwh = [20, 60, 41, 22] # 16, 112, 48 48
-frame_name_ltwh = [60, 62, 10, 1]
-frame_content_ltwh = [60, 63, 144, 16]
-text_ltwh = [61,64,140, 15]
-short_key_ltwh = [60, 79, 144, 1]

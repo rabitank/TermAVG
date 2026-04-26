@@ -22,8 +22,6 @@ pub enum Token {
     Dot,
     /// 箭头 (链式调用)
     Arrow,
-    /// 逗号 (参数分隔)
-    Comma,
     /// 换行/分号 (命令分隔)
     Newline,
     /// 文件结束
@@ -84,8 +82,8 @@ impl<'a> Lexer<'a> {
                     tokens.push(num);
                 }
 
-                // 标识符或关键字
-                'a'..='z' | 'A'..='Z' | '_' => {
+                // 标识符或关键字（支持 Unicode 连续文本）
+                _ if Self::is_ident_start(ch) => {
                     let ident = self.read_ident();
                     tokens.push(Token::Ident(ident));
                 }
@@ -108,10 +106,6 @@ impl<'a> Lexer<'a> {
                     self.advance();
                     self.advance();
                     tokens.push(Token::Arrow);
-                }
-                ',' => {
-                    self.advance();
-                    tokens.push(Token::Comma);
                 }
 
                 // 未知字符
@@ -217,15 +211,28 @@ impl<'a> Lexer<'a> {
         let mut ident = String::new();
 
         while let Some(ch) = self.chars.peek() {
-            match ch {
-                'a'..='z' | 'A'..='Z' | '0'..='9' | '_' => {
-                    ident.push(*ch);
-                    self.advance();
-                }
-                _ => break,
+            if Self::is_ident_continue(*ch) {
+                ident.push(*ch);
+                self.advance();
+            } else {
+                break;
             }
         }
 
         ident
+    }
+
+    fn is_ident_start(ch: char) -> bool {
+        if ch == '_' || ch.is_ascii_alphabetic() {
+            return true;
+        }
+        !ch.is_ascii() && Self::is_ident_continue(ch)
+    }
+
+    fn is_ident_continue(ch: char) -> bool {
+        !matches!(
+            ch,
+            ' ' | '\t' | '\r' | '\n' | '"' | '#' | '=' | '.' | '-' | '>'
+        )
     }
 }

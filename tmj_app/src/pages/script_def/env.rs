@@ -1,13 +1,18 @@
 use tmj_core::{
     pathes,
-    script::{ContextRef, Interpreter, IntoScriptValue, ScriptContext, ScriptValue, lower_str},
+    script::{
+        ContextRef, Interpreter, IntoScriptValue, ScriptContext, ScriptValue, lower_str,
+    },
 };
 
-use crate::{
-    SETTING, audio, pages::script_def::{
-        BaseVariable, Character, TextObj, VBg, VBgm, VChapter, VCharacterLs, VFrame, VLayer, VParagraph, var_frame, var_layer, var_paragraph
-    }
-};
+use crate::
+    pages::
+        script_def::{
+            BaseVariable, Character, TextObj, VBg, VBgm, VChapter, VCharacterLs, VFrame, VLayer,
+            VParagraph, var_frame, var_layer,
+        }
+    
+;
 
 macro_rules! script_str {
     ($ctx:ident, $name:ident) => {
@@ -22,13 +27,14 @@ macro_rules! script_str {
 // global member
 lower_str!(BGIMG_PATH);
 lower_str!(FACE_PATH);
+lower_str!(BEHAVIOURS_MAP);
+pub use super::var_bg::BG;
+pub use super::var_bgm::BGM;
+pub use super::var_chapter::CHAPTER;
 pub use super::var_character_ls::CHARACTER_LS;
 pub use super::var_frame::FRAME;
 pub use super::var_layer::LAYERS;
 pub use super::var_paragraph::PARAGRAPH;
-pub use super::var_bgm::BGM;
-pub use super::var_chapter::CHAPTER;
-pub use super::var_bg::BG;
 
 // global function
 lower_str!(TEXT);
@@ -49,7 +55,7 @@ fn regist_base_gvar(ctx: &mut ScriptContext) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn init_env(ctx: ContextRef) {
+pub fn init_env(ctx: ContextRef, behaviours: crate::pages::pipeline::BehaviourMap) {
     {
         ctx.borrow_mut()
             .set_global_val(DISPLAY_NAME, ScriptValue::string(""));
@@ -57,11 +63,12 @@ pub fn init_env(ctx: ContextRef) {
 
     let mut ctx = ctx.borrow_mut();
     {
-        use audio::*;
+        use crate::audio::*;
         script_str!(ctx, FADE_IN);
         script_str!(ctx, FADE_OUT);
         script_str!(ctx, TRANSITION);
         script_str!(ctx, FACE_PATH, "");
+        ctx.set_global_val(BEHAVIOURS_MAP, ScriptValue::rust_object(behaviours));
     }
     {
         ctx.type_registry.register::<Character>();
@@ -182,12 +189,6 @@ pub fn init_env(ctx: ContextRef) {
             )
             .map_err(|e| anyhow::anyhow!(e))?;
 
-            // 使用 frame 作为显示主体，确保 paragraph 不遮挡
-            if let Some(paragraph) = c.borrow().get_global_val(PARAGRAPH).and_then(|v| v.as_table()) {
-                paragraph
-                    .borrow_mut()
-                    .set(var_paragraph::VISIBLE, ScriptValue::bool(false));
-            }
             Ok(ScriptValue::Nil)
         });
     }

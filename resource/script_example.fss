@@ -1,72 +1,71 @@
 #1
-bgm.set "resource/bgm1.mp3"
-set bgimg_path "resource/bg_classroom.png"
-p1 = character "resource/fc.chr"
-p2 = character "resource/bxy.chr"
-character_ls.set_characters p1 p2
-p1.say "我觉得我们得把那个 isDataReady 标志位改成 isReadyData，这样语义更自然"
+fc = character "resource/fc.chr" // 女主 夏界
+mc = character "resource/mc.chr" // 主角 艾可思
+bxy = character "resource/bxy.chr" // 副女主 白循衍
+bg.set ""
+// once chapter.title "X-1"
+// once chapter.subtitle "所有人的具体生活，已经降级为思辨性世界的生活。"
+// chapter.show
+
+// #
+// chapter.hide
+// text "我喜欢故事"
+
+// #
+// text "倒不如说没有人不喜欢故事吧"
+
+// #
+// text "我偏好剧情作品, 阅读了故事就好像多活了几年一样,真是奇妙啊"
+
+// #
+// text "......"
+
+character_ls.set_characters fc
+bg.set "resource/bg_classroom.png"
+bgm "resource/relax.mp3"
 
 #2
-set p2.face smile
-p2.say "但是 isReadyData 少了一个‘a’，你说的是 isReadyData 还是 isDataReady？"
+once fc.face however
+fc.say 你喜欢我们课代表吗?
 
 #3
-p1.say "就是那个……算了，我决定用 bReady，前面加个匈牙利命名法的 b，表示布尔型"
+once mc.face oops
+mc.say 喔?啊,不是?欸?
 
 #4
-p2.say "好，那 bReady 是 true 的时候代表什么？"
+fc.say 难道是无意识盯着课代表看?
 
 #5
-once p1.face smile
-p1.say "代表它 not false"
+bg.trans_to "resource/bg_c2.png" 1.0
 
 #6
-p2.say "那 not false 不就是 true 吗？"
+frame.hide
+paragraph.show
+paragraph.new "
+    啊是没想起来吗那我先来几句吧哎哟我滴妈小白手套AUV好胖好可爱哈基米莫那买路多阿西噶哈压库哪路胖宝宝胖宝宝胖宝宝胖宝宝胖宝宝哈基米哈基米哈基米哈基米哈基米哎哟我滴妈好胖好可爱~
+"
 
 #7
-p1.say "对，所以 bReady 为 true 的时候，它其实是 !false，我们得小心别搞混"
+paragraph.print "
+    以上~,你以前在群聊里说可以用这种歌词对暗号来着虽然别人都骂你沙比来的
+"
 
 #8
-p2.say "那 !false 和 true 有什么区别？"
+paragraph.print "
+    啊还有哦虽然你发了很多哈基米音乐但是我更喜欢偶尔发的音mad鬼畜最喜欢创价和homo了感觉非常有品啊其次就是潮汕英豪传了作为杀马特鬼畜领域的代表性作品也是非常本土化和有创造力呢。
+
+    二次元的话我很喜欢你发的歪弟日报和干长江杂谈时代感正好而且非常有梗可惜这两个都是时代眼泪只能多刷几遍旧视频顺便看看新科动漫的轮播节目还有总是给我发一些幸运星的何意味二创视频希望学长分享之前也要考虑一下别人的审美趣味哈哈。
+    
+    但是你分享的东方音乐和中v歌曲我也都有听哦每次发的音乐就非常正经呢不过剩下的就全是哈基米哈哈哈完全听不懂只觉得奇异搞笑。还有能不能不要老是发嘲笑⭕神孝子的视频啊一点也不好笑我也是玩⚪神的希望学长就算再怎么糖也不要上升到整个游戏玩家啊。
+    
+    话说你在听吗认真听我放空大脑说的胡话的你也真是神人了。
+"
 
 #9
-p1.say "区别在于……!false 多了一个感叹号，性能上会慢一点点"
+paragraph.hide
+frame.show
+text 这家伙在说什么呢,感觉是玩⚪玩的所以不敢在网络说话在线下找到我疯狂吐槽顺便高歌一首哈基米音乐
 
 #10
-once p2.face cry
-p2.say "那我们把 bReady 默认值设成 false，然后什么时候改成 !false？"
-
-#11
-p1.say "等 isDataReady 变成 true 的时候"
-
-#12
-p2.say "但 isDataReady 已经改名叫 bReady 了啊。"
-
-#13
-p1.say "哦对，那我们需要一个中间变量 tempReady 来过渡一下"
-
-#14
-p2.say "那 tempReady 用完了要不要删掉？"
-
-#15
-p1.say "不用，我们把它注释掉，下次万一用得上"
-
-#16
-p2.say "行，那我现在写代码了。这个变量名用 _bReadyTemp_2_final_FINAL 没问题吧？"
-
-#17
-p1.say "完美，记得加下划线开头，避免和标准库冲突"
-
-#18
-set p1.face however
-p2.say "可我们连标准库都没引用。"
-
-#19
-p1.say "那更好，更安全了"
-
-#20
-p2.say "话说……我们刚才到底要解决什么问题来着？"
-
-#21
-p1.say "我也不知道，但我已经改完变量名了，现在代码可读性提高了 100%"
+add_layer "image" "qunliao" "resource/qunliao.png" // 添加一层悬浮图像, 为手机群聊
 

@@ -3,12 +3,12 @@ use std::{collections::HashMap, fs, rc::Rc};
 use tmj_core::{
     pathes,
     script::{
-        Command, Interpreter, IntoScriptValue, RegistableType, ScriptValue, TabelGet, Table,
+        IntoScriptValue, RegistableType, ScriptValue, TabelGet, Table,
         TypeName, lower_str,
     },
 };
 
-use crate::pages::script_def::{env, var_frame};
+use crate::pages::pipeline::{with_behaviour_mut_from_ctx};
 
 lower_str!(CHARACTER);
 /// 创建新的 Character Table
@@ -32,7 +32,6 @@ lower_str!(FACE);
 
 //character methods
 lower_str!(SAY);
-lower_str!(GET_CURRENT_STAND);
 
 impl RegistableType for Character {
     fn create_class_table(_ctx: &tmj_core::script::ScriptContext, args: Vec<ScriptValue>) -> Table {
@@ -78,21 +77,6 @@ impl RegistableType for Character {
         _ctx: &tmj_core::script::ContextRef,
         table_rc: &Rc<std::cell::RefCell<Table>>,
     ) -> Result<(), String> {
-        {
-            let table_clone = Rc::clone(table_rc);
-            table_rc.borrow_mut().set(
-                GET_CURRENT_STAND,
-                ScriptValue::function(GET_CURRENT_STAND, move |_ctx, _args| {
-                    let cur_face = table_clone.get(FACE)?;
-                    let stand_img_path = table_clone
-                        .get(_STANDS)?
-                        .as_table()
-                        .unwrap()
-                        .get(cur_face.as_str().unwrap())?;
-                    Ok(stand_img_path)
-                }),
-            );
-        }
 
         {
             let table_clone = Rc::clone(table_rc);
@@ -102,38 +86,30 @@ impl RegistableType for Character {
                     if args.is_empty() {
                         anyhow::bail!("say requires text argument".to_string());
                     }
-                    let _text = args[0].as_str().unwrap_or("");
+                    let text = args[0].as_str().unwrap_or("");
                     let speaker_name = table_clone.get(DISPLAY)?;
 
-                    tracing::info!("{:?} is saying {}", speaker_name.as_str().unwrap(), _text);
+                    tracing::info!("{:?} is saying {}", speaker_name.as_str().unwrap(), text);
                     let cur_face = table_clone.get(FACE)?;
                     let face_path = table_clone
                         .get(_FACES)?
                         .as_table()
                         .unwrap()
-                        .get(cur_face.as_str().unwrap()).unwrap_or_else(|e| {
-                            tracing::warn!("got character face img failed: {:?}\n set face none", e);
+                        .get(cur_face.as_str().unwrap())
+                        .unwrap_or_else(|e| {
+                            tracing::warn!(
+                                "got character face img failed: {:?}\n set face none",
+                                e
+                            );
                             ScriptValue::String("".into())
                         });
 
-                    Interpreter::eval_cmds(
-                        vec![
-                            Command::Once {
-                                path: format!("{:}.{:}", env::FRAME, var_frame::SPEAKER),
-                                args: vec![speaker_name],
-                            },
-                            Command::Once {
-                                path: format!("{:}.{:}", env::FRAME, var_frame::CONTENT),
-                                args: vec![ScriptValue::string(_text)],
-                            },
-                            Command::Once {
-                                path: format!("{:}", env::FACE_PATH),
-                                args: vec![face_path],
-                            },
-                        ],
-                        ctx.clone(),
-                    )
-                    .map_err(|e| anyhow::anyhow!(e))?;
+                    let speaker_name = speaker_name.as_string().cloned().unwrap();
+                    let face_path = face_path.as_string().cloned().unwrap();
+
+                    with_behaviour_mut_from_ctx::<crate::pages::pipeline::dialogue_frame::FrameBehaviour, _>(ctx, |b|{
+                        b.export_say(speaker_name, face_path, text.to_string());
+                    })?;
 
                     Ok(ScriptValue::nil())
                 }),
