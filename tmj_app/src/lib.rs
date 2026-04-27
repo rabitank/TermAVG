@@ -9,3 +9,4 @@ pub use setting::SETTING;
 pub use layout::LAYOUT;
 pub mod utils;
 pub mod art;
+pub use art::theme::THEME;

@@ -10,14 +10,12 @@ use crate::{
     art::theme::THEME,
     layout::Layout,
     pages::{
-        dialogue::DialogueScene,
-        pipeline::{
+        dialogue::DialogueScene, pipeline::{
             Behaviour,
             animation::{self, Animation},
             logical_area,
             visual_element::{VisualElement, VisualElementCustomDrawer, VisualElementKind},
-        },
-        script_def::var_frame,
+        }, pop_items::HISTORY_LS, script_def::var_frame
     },
 };
 
@@ -235,15 +233,17 @@ fn draw_shortkey_bar(
     let desc = THEME.key_binding.description;
     let line = Line::from(vec![
         Span::styled(" Click/Enter ", key),
-        Span::styled(" Next  ", desc),
+        Span::styled(" Next ", desc),
         Span::styled(" s ", key),
-        Span::styled(" Save  ", desc),
+        Span::styled(" Save ", desc),
         Span::styled(" l ", key),
-        Span::styled(" Load  ", desc),
+        Span::styled(" Load ", desc),
         Span::styled(" h ", key),
-        Span::styled(" HideFrame  ", desc),
+        Span::styled(" HideFrame ", desc),
         Span::styled(" Q/Esc ", key),
-        Span::styled(" Quit", desc),
+        Span::styled(" Quit ", desc),
+        Span::styled(" ↑ ", key),
+        Span::styled(" History ", desc),
     ]);
     Paragraph::new(line)
         .alignment(Alignment::Center)

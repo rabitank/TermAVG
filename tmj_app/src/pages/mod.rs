@@ -20,8 +20,6 @@ pub use slot::SAVE_MANAGER;
 use crate::gameflow::{GameFlowMgr, NamedArgs};
 
 pub mod pop_items;
-pub use pop_items::UserItems;
-
 pub mod pipeline;
 
 pub trait Draw {

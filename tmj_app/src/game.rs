@@ -13,6 +13,7 @@ use tmj_core::{
 };
 use tracing::info;
 
+use crate::pages::mainmenu::MainScreen;
 use crate::{SETTING, utils};
 use crate::art::theme;
 use crate::audio::AUDIOM;
@@ -54,6 +55,15 @@ impl Game {
                 TrackConfig {
                     looped: false,
                     default_fade_duration: Duration::from_millis(10),
+                    ..Default::default()
+                },
+            );
+            a.create_track(
+                Tracks::EnvEffect,
+                Tracks::EnvEffect.to_string(),
+                TrackConfig {
+                    looped: true,
+                    default_fade_duration: Duration::from_millis(200),
                     ..Default::default()
                 },
             );

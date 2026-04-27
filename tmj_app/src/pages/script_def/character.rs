@@ -2,13 +2,10 @@ use serde::{Deserialize, Serialize};
 use std::{cell::RefCell, collections::HashMap, fs, rc::Rc};
 use tmj_core::{
     pathes,
-    script::{
-        IntoScriptValue, RegistableType, ScriptValue, TabelGet, Table,
-        TypeName, lower_str,
-    },
+    script::{IntoScriptValue, RegistableType, ScriptValue, TabelGet, Table, TypeName, lower_str},
 };
 
-use crate::pages::pipeline::{with_behaviour_mut_from_ctx};
+use crate::pages::{pipeline::with_behaviour_mut_from_ctx, pop_items::DialogueRecord};
 
 lower_str!(CHARACTER);
 /// 创建新的 Character Table
@@ -34,7 +31,10 @@ lower_str!(FACE);
 lower_str!(SAY);
 
 impl RegistableType for Character {
-    fn create_class_table(ctx: &mut tmj_core::script::ScriptContext, args: Vec<ScriptValue>) -> Table {
+    fn create_class_table(
+        ctx: &mut tmj_core::script::ScriptContext,
+        args: Vec<ScriptValue>,
+    ) -> Table {
         match args.get(0) {
             Some(setting_file) if setting_file.is_string() => {
                 // 1. deserialize rust character
@@ -100,7 +100,6 @@ impl RegistableType for Character {
         ctx: &tmj_core::script::ContextRef,
         table_rc: &Rc<std::cell::RefCell<Table>>,
     ) -> Result<(), String> {
-
         {
             let table_clone = Rc::clone(table_rc);
             table_rc.borrow_mut().set(
@@ -120,9 +119,7 @@ impl RegistableType for Character {
                         .resolve_table_value(&faces_sv)
                         .ok()
                         .and_then(|faces_tbl| {
-                            faces_tbl
-                                .borrow()
-                                .get(cur_face.as_str().unwrap(), None)
+                            faces_tbl.borrow().get(cur_face.as_str().unwrap(), None)
                         })
                         .unwrap_or_else(|| {
                             tracing::warn!("got character face img failed; set face none");
@@ -132,7 +129,19 @@ impl RegistableType for Character {
                     let speaker_name = speaker_name.as_string().cloned().unwrap();
                     let face_path = face_path.as_string().cloned().unwrap();
 
-                    with_behaviour_mut_from_ctx::<crate::pages::pipeline::dialogue_frame::FrameBehaviour, _>(ctx, |b|{
+                    crate::pages::pop_items::HISTORY_LS
+                        .lock()
+                        .unwrap()
+                        .push(DialogueRecord {
+                            id: ctx.borrow().session_counter(),
+                            speaker: speaker_name.clone(),
+                            content: text.to_string(),
+                        });
+
+                    with_behaviour_mut_from_ctx::<
+                        crate::pages::pipeline::dialogue_frame::FrameBehaviour,
+                        _,
+                    >(ctx, |b| {
                         b.export_say(speaker_name, face_path, text.to_string());
                     })?;
 

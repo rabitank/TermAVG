@@ -6,6 +6,7 @@ use serde::Deserialize;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
+use tmj_core::audio::AudioOp;
 use tmj_core::command::{CmdBuffer, GameCmd};
 use tmj_core::event::handler::EventDispatcher;
 use tmj_core::script::{
@@ -22,9 +23,10 @@ use crate::pages::pipeline::{
 };
 use crate::{SETTING, audio};
 
-use crate::pages::pop_items::CmdInputItem;
 use crate::pages::pop_items::PopItem;
+use crate::pages::pop_items::{CmdInputItem, DialogueHistoryLs};
 use crate::pages::script_def::var_bgm;
+use crate::pages::script_def::var_env_effect;
 use crate::pages::script_reader::{SectionReadResult, StreamSectionReader};
 use crate::pages::{Draw, Screen, ScreenActRespond, UserScreen};
 
@@ -80,7 +82,7 @@ pub struct DialogueScene {
     pub script_behaviours: BehaviourMap,
     visual_elements: RefCell<Vec<VisualElement>>,
     need_rebuild_ve: RefCell<bool>,
-    #[cfg(debug_assertions)]
+    history_ls: Option<DialogueHistoryLs>,
     cmd_input: Option<CmdInputItem>,
 }
 
@@ -95,12 +97,28 @@ impl DialogueScene {
             .get_val(&bgm_path)
             .unwrap();
 
+        let env_path = format!("{}.{}", var_env_effect::ENV_EFFECT, var_env_effect::SOURCE);
+        let env_path_val = self
+            .get_interpreter()
+            .borrow()
+            .context()
+            .borrow()
+            .get_val(&env_path)
+            .unwrap();
+
         AUDIOM.with_borrow_mut(|a| {
             if bgm_path.is_string() && !bgm_path.as_string().unwrap().is_empty() {
                 let source = load_audio(bgm_path.as_string().unwrap())?;
                 a.track_mut(&audio::Tracks::Bgm)
                     .unwrap()
                     .fade_in(source, Duration::from_millis(100));
+            }
+            if env_path_val.is_string() && !env_path_val.as_string().unwrap().is_empty() {
+                let source = load_audio(env_path_val.as_string().unwrap())?;
+                if let Some(t) = a.track_mut(&audio::Tracks::EnvEffect) {
+                    t.stop();
+                    t.queue(AudioOp::play(source, 1.0));
+                }
             }
             Ok(())
         })
@@ -118,23 +136,19 @@ impl Screen for DialogueScene {
         &mut self,
         _named_args: &crate::gameflow::NamedArgs,
     ) -> anyhow::Result<super::ScreenActRespond> {
-
         for behaviour in self.script_behaviours.values_mut().values_mut() {
             behaviour.on_scene_active(self.interpreter.borrow_mut().context())?;
         }
-
         self.init_audio()?;
-        if self.session_id == 0 {
-            self.on_try_push_dialouge()?;
-        } else {
-            self.apply_current_session();
-        }
+        self.apply_current_session()?;
         let resp = ScreenActRespond::default();
         Ok(resp)
     }
 
     fn sleep(&mut self) -> anyhow::Result<super::ScreenActRespond> {
-        self.stop_audio()?;
+        // 进入: newgame 或者 continue 或者 load
+        // 后两个都是导入存档文件
+        self.reset_to_begin();
         let resp = ScreenActRespond::default();
         Ok(resp)
     }
@@ -170,13 +184,13 @@ impl DialogueScene {
             frame: 0,
             last_tick_secs: 0.0,
             hide_dialouge: false,
-            session_id: 0,
+            session_id: 1,
             script_reader,
             interpreter,
             script_behaviours: behaviours_map,
             visual_elements: RefCell::new(Vec::new()),
             need_rebuild_ve: RefCell::new(true),
-            #[cfg(debug_assertions)]
+            history_ls: None,
             cmd_input: None,
         };
         scene
@@ -253,11 +267,16 @@ impl Draw for DialogueScene {
                 buffer
             }
         };
+
         let _buffer = buffer;
+        if self.history_ls.as_ref().is_some_and(|h| h.is_show()) {
+            let _ = self.history_ls.as_ref().unwrap().draw(frame, area);
+        }
+
         // draw Cmd Input
         #[cfg(debug_assertions)]
         if self.cmd_input.is_some() {
-            self.cmd_input.as_ref().unwrap().draw(
+            let _ = self.cmd_input.as_ref().unwrap().draw(
                 frame,
                 area.centered(Constraint::Length(80), Constraint::Length(3)),
             );
@@ -267,17 +286,11 @@ impl Draw for DialogueScene {
 
 impl DialogueScene {
     fn is_any_animating(&self) -> bool {
-        for b in self.script_behaviours.behaviours.borrow().values() {
-            if b.is_animating() {
-                return true;
-            }
-        }
-        false
-        // self.script_behaviours
-        //     .behaviours
-        //     .borrow()
-        //     .values()
-        //     .any(|b| b.is_animating())
+        self.script_behaviours
+            .behaviours
+            .borrow()
+            .values()
+            .any(|b| b.is_animating())
     }
 
     fn toggle_dialouge(&mut self) {
@@ -285,6 +298,7 @@ impl DialogueScene {
     }
 
     fn load_sessions(&mut self) -> anyhow::Result<(Vec<script::Command>, bool)> {
+        tracing::info!("{:?}", SETTING.entre_script);
         let read_res = self
             .script_reader
             .read_section(self.session_id as u64)
@@ -316,7 +330,8 @@ impl DialogueScene {
         self.interpreter.borrow_mut().end_session();
         for b in self.script_behaviours.values_mut().values_mut() {
             let ctx = self.interpreter.borrow().context();
-            b.on_end_session(ctx).context("behaviour on end session failed")?;
+            b.on_end_session(ctx)
+                .context("behaviour on end session failed")?;
         }
 
         // 这里只是注入了命令没有step
@@ -327,7 +342,8 @@ impl DialogueScene {
         self.interpreter.borrow_mut().start_session(session);
 
         if read_to_eof {
-            self.end_dialouge()?;
+            CmdBuffer::push(GameCmd::GoScene(UserScreen::Main.to_string()));
+            self.reset_to_begin()?;
         }
         Ok(read_to_eof)
     }
@@ -346,12 +362,9 @@ impl DialogueScene {
         self.apply_current_session()
     }
 
-    fn end_dialouge(&mut self) -> anyhow::Result<()> {
-        AUDIOM.with_borrow_mut(|a| {
-            a.stop_all();
-        });
+    fn reset_to_begin(&mut self) -> anyhow::Result<()> {
+        self.stop_audio()?;
 
-        CmdBuffer::push(GameCmd::GoScene(UserScreen::Main.to_string()));
         self.session_id = 1;
         self.script_reader.reset()?;
 
@@ -375,6 +388,11 @@ impl EventDispatcher for DialogueScene {
             return;
         }
 
+        if self.history_ls.is_some() && self.history_ls.as_ref().unwrap().is_show() {
+            self.history_ls.as_mut().unwrap().on_key(key);
+            return;
+        }
+
         if key.is_press() {
             return;
         }
@@ -395,9 +413,8 @@ impl EventDispatcher for DialogueScene {
                         let interpreter: Rc<RefCell<tmj_core::script::Interpreter>> =
                             self.get_interpreter();
                         self.cmd_input = Some(CmdInputItem::new(interpreter));
-                    } else {
-                        self.cmd_input.as_mut().unwrap().show();
                     }
+                    self.cmd_input.as_mut().unwrap().show();
                 }
             }
             KeyCode::Esc | KeyCode::Char('q') => {
@@ -413,6 +430,12 @@ impl EventDispatcher for DialogueScene {
             KeyCode::Char('h') => {
                 self.toggle_dialouge();
             }
+            KeyCode::Up => {
+                if self.history_ls.is_none() {
+                    self.history_ls = Some(DialogueHistoryLs::new());
+                }
+                self.history_ls.as_mut().unwrap().show();
+            }
             _ => {}
         }
     }
@@ -422,6 +445,9 @@ impl EventDispatcher for DialogueScene {
     }
 
     fn on_mouse(&mut self, mouse: &ratatui::crossterm::event::MouseEvent) {
+        if self.history_ls.as_ref().is_some_and(|h| h.is_show()) {
+            return;
+        }
         if mouse.kind.is_down() {
             return;
         }
@@ -483,7 +509,7 @@ impl EventDispatcher for DialogueScene {
         let ctx = interpreter.context();
 
         for behaviour in self.script_behaviours.behaviours.borrow_mut().values_mut() {
-            behaviour.tick_update(ctx.clone(),tick);
+            behaviour.tick_update(ctx.clone(), tick);
         }
 
         let mut elements = self.visual_elements.borrow_mut();

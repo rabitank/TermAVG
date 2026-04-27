@@ -1,15 +1,18 @@
 use tmj_core::{
+    audio::AudioOp,
     pathes,
     script::{
         ContextRef, Interpreter, IntoScriptValue, ScriptContext, ScriptValue, lower_str,
     },
 };
 
+use crate::audio::{AUDIOM, Tracks, load_audio};
+
 use crate::
     pages::
         script_def::{
-            BaseVariable, Character, TextObj, VBg, VBgm, VChapter, VCharacterLs, VFrame, VLayer,
-            VParagraph, var_frame, var_layer,
+            BaseVariable, Character, TextObj, VBg, VBgm, VChapter, VCharacterLs, VEnvEffect, VFrame,
+            VLayer, VParagraph, var_frame, var_layer,
         }
     
 ;
@@ -30,6 +33,7 @@ lower_str!(FACE_PATH);
 lower_str!(BEHAVIOURS_MAP);
 pub use super::var_bg::BG;
 pub use super::var_bgm::BGM;
+pub use super::var_env_effect::ENV_EFFECT;
 pub use super::var_chapter::CHAPTER;
 pub use super::var_character_ls::CHARACTER_LS;
 pub use super::var_frame::FRAME;
@@ -43,6 +47,7 @@ lower_str!(SAVE_TO);
 lower_str!(ADD_LAYER);
 lower_str!(DEL_LAYER);
 lower_str!(SEE);
+lower_str!(VOICE);
 
 fn regist_base_gvar(ctx: &mut ScriptContext) -> anyhow::Result<()> {
     VCharacterLs::regist_to_ctx(ctx)?;
@@ -50,6 +55,7 @@ fn regist_base_gvar(ctx: &mut ScriptContext) -> anyhow::Result<()> {
     VParagraph::regist_to_ctx(ctx)?;
     VLayer::regist_to_ctx(ctx)?;
     VBgm::regist_to_ctx(ctx)?;
+    VEnvEffect::regist_to_ctx(ctx)?;
     VChapter::regist_to_ctx(ctx)?;
     VBg::regist_to_ctx(ctx)?;
     Ok(())
@@ -218,4 +224,31 @@ pub fn init_env(ctx: ContextRef, behaviours: crate::pages::pipeline::BehaviourMa
             Ok(ScriptValue::Nil)
         });
     }
+
+    {
+        ctx.set_global_func(VOICE, |_ctx, args| {
+            let path = args
+                .first()
+                .and_then(|x| x.as_str())
+                .ok_or(anyhow::anyhow!("voice requires audio file path string"))?;
+            if path.is_empty() {
+                AUDIOM.with_borrow_mut(|a| {
+                    if let Some(t) = a.track_mut(&Tracks::Voice) {
+                        t.stop();
+                    }
+                });
+                return Ok(ScriptValue::Nil);
+            }
+            let source =
+                load_audio(path).map_err(|e| anyhow::anyhow!("voice: failed to load audio: {e}"))?;
+            AUDIOM.with_borrow_mut(|a| {
+                if let Some(t) = a.track_mut(&Tracks::Voice) {
+                    t.stop();
+                    t.queue(AudioOp::play(source, 1.0));
+                }
+            });
+            Ok(ScriptValue::Nil)
+        });
+    }
+
 }

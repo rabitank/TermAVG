@@ -49,11 +49,7 @@ impl PopItem for CmdInputItem {
         self.shown = visual;
     }
 
-    fn draw_impl(
-        &self,
-        frame: &mut ratatui::Frame,
-        rect: ratatui::layout::Rect,
-    ) -> anyhow::Result<()> {
+    fn draw(&self, frame: &mut ratatui::Frame, rect: ratatui::layout::Rect) -> anyhow::Result<()>{
         let line = Line::from_iter([
             Span::from(">").style(theme::THEME.root),
             Span::from(self.current_input.clone()).style(theme::THEME.content),

@@ -111,7 +111,6 @@ impl MainScreen {
         let cur_selection = &self.selections[self.select_state.borrow().selected().unwrap()];
         match cur_selection {
             MainSelections::NewGame => {
-                // CmdBuffer::push(GameCmd::NewGame);
                 CmdBuffer::push(GameCmd::GoScene(UserScreen::Dialogue.to_string()));
             }
             MainSelections::Load => {
@@ -154,7 +153,7 @@ impl EventDispatcher for MainScreen {
                 self.select_state.borrow_mut().select_previous();
             }
             KeyCode::Enter => {
-                self.execute_selection();
+                let _ = self.execute_selection();
             }
             _ => {}
         }

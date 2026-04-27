@@ -13,6 +13,7 @@ pub struct GameSetting {
     pub entre_script: PathBuf,
     pub default_bg_img: PathBuf,
     pub default_face_img: PathBuf,
+    pub max_history_ls: usize,
 }
 
 impl GameSetting {
@@ -32,10 +33,12 @@ impl GameSetting {
 fn read_setting_file() -> anyhow::Result<GameSetting> {
     let path = pathes::path("setting.toml");
     let setting = if fs::exists(&path)? {
+        tracing::info!("read setting file: {:?}", path);
         let cnt = fs::read_to_string(path).context("current setting file unreadable!")?;
         let game_setting = toml::from_str::<GameSetting>(&cnt)?;
         game_setting
     } else {
+        tracing::error!("{:?} setting file not found", path);
         let game_setting = GameSetting::default();
         let cnt = toml::to_string(&game_setting)?;
         fs::write(path, cnt)?;
@@ -66,6 +69,7 @@ impl Default for GameSetting {
             entre_script: "resource/script.fs".into(),
             default_bg_img: "resource/default_background_img.png".into(),
             default_face_img: "resource/default_face_img.png".into(),
+            max_history_ls: 60,
         }
     }
 }

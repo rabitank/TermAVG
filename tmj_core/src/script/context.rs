@@ -20,7 +20,7 @@ pub struct ScriptContext {
     pub globals: HashMap<String, ScriptValue>,
     pub type_registry: TypeRegistry,
     once_stack: Vec<OnceRecord>,
-    session_id: usize,
+    session_counter: usize,
     /// 下一个分配的表 id（从 1 起；0 表示非法）
     next_tuid: u64,
     /// 运行时 `tuid` → 表；不参与序列化
@@ -36,7 +36,7 @@ impl ScriptContext {
             globals: HashMap::new(),
             type_registry,
             once_stack: Vec::new(),
-            session_id: 0,
+            session_counter: 0,
             next_tuid: 1,
             tuid_table: HashMap::new(),
             context_ref: None,
@@ -492,25 +492,25 @@ impl ScriptContext {
     }
 
     pub fn start_session(&mut self) {
-        self.session_id += 1;
+        self.session_counter += 1;
         self.once_stack.clear();
-        info!("Context: start_session id={}", self.session_id);
+        info!("Context: start_session id={}", self.session_counter);
     }
 
     pub fn end_session(&mut self) {
-        info!("Context: end_session id={}", self.session_id);
+        info!("Context: end_session id={}", self.session_counter);
         self.restore_once();
     }
 
-    pub fn session_id(&self) -> usize {
-        self.session_id
+    pub fn session_counter(&self) -> usize {
+        self.session_counter
     }
 
     pub fn clear(&mut self) {
         info!("Context: clear");
         self.globals.clear();
         self.once_stack.clear();
-        self.session_id = 0;
+        self.session_counter = 0;
         self.tuid_table.clear();
         self.next_tuid = 1;
     }
@@ -550,12 +550,12 @@ impl SerializableContext {
         }
         SerializableContext {
             globals,
-            session_id: ctx.session_id,
+            session_id: ctx.session_counter,
         }
     }
 
     pub fn to_context(&self, ctx: &ContextRef) -> Result<(), String> {
-        ctx.borrow_mut().session_id = self.session_id;
+        ctx.borrow_mut().session_counter = self.session_id;
 
         for (name, value) in &self.globals {
             let v = value.clone();

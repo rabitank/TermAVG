@@ -5,3 +5,4 @@ entre_script = "resource/script_example.fss"
 default_bg_img = "resource/bg_0.png"
 default_face_img = "resource/default_face_img.png"
 preprogress_script = ["resource/script_example.fs"]
+max_history_ls = 60

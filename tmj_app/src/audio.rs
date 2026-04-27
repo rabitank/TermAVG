@@ -15,6 +15,8 @@ use tmj_core::{
 pub enum Tracks {
     Bgm,
     Voice,
+    /// 环境音效（与 BGM、语音独立，脚本 `env_effect` 使用）
+    EnvEffect,
     Effect,
     Effect1,
     Effect2,

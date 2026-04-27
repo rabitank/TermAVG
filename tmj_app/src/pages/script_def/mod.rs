@@ -23,6 +23,9 @@ pub use var_layer::VLayer;
 pub mod var_bgm;
 pub use var_bgm::VBgm;
 
+pub mod var_env_effect;
+pub use var_env_effect::VEnvEffect;
+
 pub mod var_chapter;
 pub use var_chapter::VChapter;
 

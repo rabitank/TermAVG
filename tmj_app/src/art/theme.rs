@@ -1,3 +1,4 @@
+
 use ratatui::style::{Color, Modifier, Style};
 
 pub struct Theme {
@@ -14,6 +15,7 @@ pub struct Theme {
     pub dialouge: Dialogue,
     pub load: Load,
     pub save: Save,
+    pub history: History
 }
 
 pub struct KeyBinding {
@@ -63,6 +65,13 @@ pub struct Save {
     pub ingredients_header: Style,
 }
 
+pub struct History {
+    pub base: Style,
+    pub item_border: Style,
+    pub say_item: Style,
+    pub text_item: Style
+}
+
 pub const THEME: Theme = Theme {
     root: Style::new().bg(DARK_BLUE),
     content: Style::new().bg(DARK_BLUE).fg(LIGHT_GRAY),
@@ -84,8 +93,8 @@ pub const THEME: Theme = Theme {
         rat_eye_alt: RED,
     },
     key_binding: KeyBinding {
-        key: Style::new().fg(BLACK).bg(DARK_GRAY),
-        description: Style::new().fg(DARK_GRAY).bg(BLACK),
+        key: Style::new().fg(BLACK).bg(MID_GRAY),
+        description: Style::new().fg(MID_GRAY).bg(BLACK),
     },
     dialouge: Dialogue {
         name: Style::new().fg(WHITE).bg(BLACK),
@@ -127,6 +136,12 @@ pub const THEME: Theme = Theme {
             .add_modifier(Modifier::BOLD)
             .add_modifier(Modifier::UNDERLINED),
     },
+    history: History{
+        base: Style::new().bg(DARK_BLUE),
+        item_border: Style::new().fg(LIGHT_GRAY),
+        say_item: Style::new().fg(WHITE),
+        text_item: Style::new().fg(LIGHT_GRAY)
+    }
 };
 
 pub const DARK_BLUE: Color = Color::Rgb(16, 24, 48);
