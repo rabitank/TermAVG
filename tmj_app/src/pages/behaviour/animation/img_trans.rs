@@ -4,23 +4,31 @@ use std::{
 };
 
 use ratatui::{buffer::Buffer, layout::Rect};
-use ratatui::{buffer::Cell, style::Color, widgets::Widget};
-use tmj_core::{img::shape::Pic, script::TypeName};
+use ratatui::{buffer::Cell, style::Color};
+use tmj_core::img::{halfblock::mix_into_cell, shape::CoverMethod};
+use tmj_core::img::shape::Pic;
+use tmj_core::script::TypeName;
 
 use crate::{
-    art::{halfblock::mix_into_cell, theme},
+    art::theme,
     pages::behaviour::{
         animation::{Animation, AnyAnimation},
         visual_element::{VisualElementCustomDrawer, VisualElementKind},
     },
 };
 
-#[derive(TypeName, Default)]
+#[derive(TypeName)]
 pub struct AniImgTrans {
+    pub default_img_cover: CoverMethod,
     pub anim_time: time::Duration,
     pub old_image: Option<PathBuf>,
     pub new_image: Option<PathBuf>,
     pub run_time: time::Duration,
+}
+impl Default for AniImgTrans {
+    fn default() -> Self {
+        Self { default_img_cover: tmj_core::img::cover::cover, anim_time: Default::default(), old_image: Default::default(), new_image: Default::default(), run_time: Default::default() }
+    }
 }
 impl AnyAnimation for AniImgTrans {}
 
@@ -69,6 +77,7 @@ impl Animation for AniImgTrans {
                     .to_str()
                     .unwrap()
                     .to_string(),
+                cover_method: self.default_img_cover,
             };
             return Ok(());
         }
@@ -82,6 +91,7 @@ impl Animation for AniImgTrans {
                     .to_str()
                     .unwrap()
                     .to_string(),
+                cover_method: self.default_img_cover,
             };
             return Ok(());
         }

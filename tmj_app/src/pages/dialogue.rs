@@ -42,7 +42,7 @@ thread_local! {
 
 fn visual_element_debug_dump(ve: &VisualElement) -> String {
     let kind = match &ve.kind {
-        VisualElementKind::Image { source } => format!("Image(source={source})"),
+        VisualElementKind::Image { source, .. } => format!("Image(source={source})"),
         VisualElementKind::Text { content } => {
             format!("Text(len={}, content={content:?})", content.chars().count())
         }

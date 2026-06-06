@@ -105,45 +105,7 @@ pub fn text(
     }
 }
 
-pub fn blend(mask_color: Color, cell_color: Color, percentage: f64) -> Color {
-    let Color::Rgb(mask_red, mask_green, mask_blue) = mask_color else {
-        return mask_color;
-    };
-    let Color::Rgb(cell_red, cell_green, cell_blue) = cell_color else {
-        return mask_color;
-    };
-
-    let remain = 1.0 - percentage;
-
-    let red = f64::from(mask_red).mul_add(percentage, f64::from(cell_red) * remain);
-    let green = f64::from(mask_green).mul_add(percentage, f64::from(cell_green) * remain);
-    let blue = f64::from(mask_blue).mul_add(percentage, f64::from(cell_blue) * remain);
-
-    #[expect(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    Color::Rgb(red as u8, green as u8, blue as u8)
-}
-pub fn cover_cell(raw_cell: &mut Cell, mask_cell: &Cell) {
-    if mask_cell.symbol().is_empty() {
-        return;
-    }
-    raw_cell.set_symbol(mask_cell.symbol());
-    if !mask_cell.style().fg.is_none() {
-        raw_cell.set_fg(mask_cell.style().fg.unwrap());
-    }
-    if !mask_cell.style().bg.is_none() {
-        raw_cell.set_bg(mask_cell.style().bg.unwrap());
-    }
-}
-
-pub fn cover(raw_buf: &mut Buffer, new_buf: &mut Buffer, area: Rect) {
-    for row in area.rows() {
-        for col in row.columns() {
-            let cell = &mut raw_buf[(col.x, col.y)];
-            let mask_cell = &mut new_buf[(col.x, col.y)];
-            cover_cell(cell, mask_cell);
-        }
-    }
-}
+pub use tmj_core::img::cover::blend;
 
 /// a centered rect of the given size
 fn centered_rect(area: Rect, width: u16, height: u16) -> Rect {

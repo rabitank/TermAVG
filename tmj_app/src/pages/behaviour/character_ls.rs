@@ -4,7 +4,7 @@ use std::ops::{Div, Mul};
 use std::time::Duration;
 
 use ratatui::layout::Rect;
-use tmj_core::script::{ContextRef, IntoScriptValue, TableRef};
+use tmj_core::script::{ContextRef, TableRef};
 use tmj_core::script::{ScriptValue, TabelGet, TypeName};
 
 use crate::pages::behaviour::Behaviour;
@@ -86,6 +86,7 @@ impl CharactersStage {
         self.character_ves_anim_map.borrow_mut().insert_ani(
             &ve_name,
             AniImgTrans {
+                default_img_cover: tmj_core::img::halfblock::cover_halfblock,
                 anim_time: duration,
                 old_image: Some(old_stand_path.into()),
                 new_image: Some(new_stand_path.into()),
@@ -296,7 +297,9 @@ impl Behaviour for CharactersStage {
                 ve.z_index = Z_CHARACTER_BASE + ls_id as i32;
                 if !self.character_ve_has_active_anims(&ve_name) {
                     ve.rect = rect;
-                    if let VisualElementKind::Image { source: current } = &mut ve.kind {
+                    if let VisualElementKind::Image {
+                        source: current, ..
+                    } = &mut ve.kind {
                         *current = source;
                     }
                 }
@@ -477,7 +480,10 @@ fn make_character_element(ls_id: i64, rect: Rect, source: String) -> VisualEleme
         name: format!("character_{ls_id}"),
         z_index: Z_CHARACTER_BASE + ls_id as i32,
         rect,
-        kind: VisualElementKind::Image { source },
+        kind: VisualElementKind::Image {
+            source,
+            cover_method: tmj_core::img::halfblock::cover_halfblock,
+        },
         ..Default::default()
     }
 }

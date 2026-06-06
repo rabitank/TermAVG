@@ -147,6 +147,7 @@ impl Behaviour for FrameBehaviour {
                 rect: Layout::ltwh2rect(area, &LAYOUT.frame_face_ltwh),
                 kind: VisualElementKind::Image {
                     source: String::new(),
+                    cover_method: tmj_core::img::cover::cover,
                 },
                 ..Default::default()
             },
@@ -256,7 +257,7 @@ impl Behaviour for FrameBehaviour {
                 Self::VE_FACE => {
                     ve.visible = !self.face_img.is_empty();
                     if !self.face_img.is_empty()
-                        && let VisualElementKind::Image { source } = &mut ve.kind
+                        && let VisualElementKind::Image { source, .. } = &mut ve.kind
                     {
                         *source = self.face_img.clone();
                     }

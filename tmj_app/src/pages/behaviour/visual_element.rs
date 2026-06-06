@@ -5,7 +5,10 @@ use ratatui::{
     text::Text,
     widgets::{Block, Borders, Clear, Paragraph, Widget, Wrap},
 };
-use tmj_core::{img::shape::Pic, pathes};
+use tmj_core::{
+    img::shape::{CoverMethod, Pic},
+    pathes,
+};
 
 // 使用假的Clone来满足需求罢了
 fn _default_no_draw(_: &VisualElement, _: &mut Buffer, _: Rect) -> anyhow::Result<()> {
@@ -35,7 +38,10 @@ impl VisualElementCustomDrawer {
 
 #[derive(Clone)]
 pub enum VisualElementKind {
-    Image { source: String },
+    Image {
+        source: String,
+        cover_method: CoverMethod,
+    },
     Text { content: String },
     Fill,
     Custom { drawer: VisualElementCustomDrawer },
@@ -185,9 +191,12 @@ impl VisualElement {
             Block::default().style(self.style).render(rect, buffer);
         }
         match &self.kind {
-            VisualElementKind::Image { source } => {
+            VisualElementKind::Image {
+                source,
+                cover_method,
+            } => {
                 if !source.trim().is_empty() {
-                    let pic = Pic::from(pathes::path(source))?;
+                    let pic = Pic::from(pathes::path(source))?.with_cover(*cover_method);
                     pic.render(rect, buffer);
                 }
             }

@@ -14,6 +14,11 @@ use ratatui::{
 
 use anyhow::{Context, Result};
 
+pub use super::cover::cover;
+
+//// 覆盖方法签名：将 new_buf 按策略叠到 raw_buf 的 area 区域
+pub type CoverMethod = fn(&mut Buffer, &mut Buffer, Rect);
+
 pub struct PicFrame {
     pub dimensions: (u32, u32),
     img: DynamicImage,
@@ -22,25 +27,7 @@ pub struct PicFrame {
 pub struct Pic {
     path: PathBuf,
     pic_frame: PicFrame,
-}
-// cover 优化图片透明部分的覆盖效果
-fn cover(raw_buf: &mut Buffer, new_buf: &mut Buffer, area: Rect) {
-    for row in area.rows() {
-        for col in row.columns() {
-            let cell = &mut raw_buf[(col.x, col.y)];
-            let mask_cell = &mut new_buf[(col.x, col.y)];
-            if mask_cell.symbol().is_empty() {
-                continue;
-            }
-            if mask_cell.fg != Color::Reset {
-                cell.set_fg(mask_cell.style().fg.unwrap());
-                cell.set_symbol(mask_cell.symbol());
-            }
-            if mask_cell.bg != Color::Reset {
-                cell.set_bg(mask_cell.style().bg.unwrap());
-            }
-        }
-    }
+    cover_method: CoverMethod,
 }
 
 ///直接绘制图片的控件,不需要canvas
@@ -48,11 +35,18 @@ impl Pic {
     pub fn from(path: impl AsRef<Path>) -> Result<Self> {
         // 这样做可以统一后续处理逻辑，忽略原图可能是灰度、RGB等不同格式
         let path_buf = path.as_ref().to_path_buf();
-        let pic_frame = PicFrame::from(&path_buf).unwrap();
+        let pic_frame = PicFrame::from(&path_buf)?;
         Ok(Self {
             path: path_buf,
             pic_frame,
+            cover_method: cover,
         })
+    }
+
+    //// 更换覆盖合成方法
+    pub fn with_cover(mut self, method: CoverMethod) -> Self {
+        self.cover_method = method;
+        self
     }
 
     pub fn direct_render_to(
@@ -85,7 +79,7 @@ impl Widget for Pic {
                 ctx.draw(&self.pic_frame);
             });
         canva.render(area, &mut new_buf);
-        cover(buf, &mut new_buf, area);
+        (self.cover_method)(buf, &mut new_buf, area);
     }
 }
 

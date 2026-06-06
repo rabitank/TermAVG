@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 
+use tmj_core::img::cover::cover;
 use tmj_core::script::{ScriptValue, TableRef, TypeName};
 
 use crate::{
@@ -140,7 +141,10 @@ impl LayerBehaviour {
             self.collect_layer_effect_anim(&layer, &ve.name, &data)?;
         } else {
             tracing::info!("create new image layer {}", data);
-            ve.kind = VisualElementKind::Image { source: data }
+            ve.kind = VisualElementKind::Image {
+                source: data,
+                cover_method: cover,
+            }
         };
 
         Ok(ve)
@@ -251,7 +255,7 @@ impl Behaviour for LayerBehaviour {
                 LayerBehaviour::apply_layer_base_prop(&layer, ve);
 
                 // 更新图片源
-                if let VisualElementKind::Image { source } = &mut ve.kind {
+                if let VisualElementKind::Image { source, .. } = &mut ve.kind {
                     let data = parse_required_member(&layer, layer::DATA, ScriptValue::as_string)?;
                     *source = data;
                 }
