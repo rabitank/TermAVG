@@ -31,10 +31,7 @@ strum_macros =  {version = "0.27.0"}
 anyhow = "1.0"
 
 chrono = "0.4"
-home = "0.5"
-flexi_logger = { version = "0.29", default-features = false }
 image = { version = "0.25", default-features = false, features = [ "png" ] }
-lazy_static = "1"
 
 rand = "0.9"
 rand_chacha = "0.9"

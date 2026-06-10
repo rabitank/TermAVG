@@ -34,8 +34,10 @@ use crossterm::event::{
 };
 
 //// Font data ////
-static FONT_DATA: &[u8] = include_bytes!("./MapleMono-NF-CN-Regular.ttf");
-
+// static FONT_DATA: &[u8] = include_bytes!("./MapleMono-NF-CN-Regular.ttf");
+// static FONT_DATA: &[u8] = include_bytes!("./SarasaTermCL-Regular.ttf");
+static FONT_DATA: &[u8] = include_bytes!("./Ligaconsolaslxgw.ttf");
+//
 //// 东八区时间格式化 ////
 struct ChinaLocalTime;
 impl FormatTime for ChinaLocalTime {
