@@ -13,6 +13,18 @@ use ratatui::style::Color;
 // - 当 src 透明而上层无颜色时，直接保留 dst 对应半像素的颜色。
 // - 当 src 有颜色而 dst 透明时，将 dst 视为黑色进行混合。
 pub fn mix_half_block_cells(src: &Cell, dst: &Cell, alpha: f32) -> (char, Color, Color) {
+    // src 为空/空格 → 完全透明，保留 dst 原样
+    if src.symbol().is_empty() || src.symbol() == " " {
+        let dst_ch = dst.symbol().chars().next().unwrap_or(' ');
+        return (dst_ch, dst.fg, dst.bg);
+    }
+    // src 有真实文字字符且 dst 为空，保留 src
+    let src_ch = src.symbol().chars().next().unwrap_or(' ');
+    if src_ch != ' ' && src_ch != '▀' && src_ch != '▄' {
+        if dst.symbol().is_empty() || dst.symbol() == " " {
+            return (src_ch, src.fg, src.bg);
+        }
+    }
     let (src_upper, src_lower) = decode_half_block_parts(src);
     let (dst_upper, dst_lower) = decode_half_block_parts(dst);
 
@@ -24,6 +36,18 @@ pub fn mix_half_block_cells(src: &Cell, dst: &Cell, alpha: f32) -> (char, Color,
 
 // 覆盖一个cell内的两个hb格点
 pub fn cover_half_block_cells(src: &Cell, dst: &Cell) -> (char, Color, Color) {
+    // src 为空/空格 → 完全透明，保留 dst 原样
+    if src.symbol().is_empty() || src.symbol() == " " {
+        let dst_ch = dst.symbol().chars().next().unwrap_or(' ');
+        return (dst_ch, dst.fg, dst.bg);
+    }
+    // src 有真实文字字符且 dst 为空，保留 src
+    let src_ch = src.symbol().chars().next().unwrap_or(' ');
+    if src_ch != ' ' && src_ch != '▀' && src_ch != '▄' {
+        if dst.symbol().is_empty() || dst.symbol() == " " {
+            return (src_ch, src.fg, src.bg);
+        }
+    }
     let (src_upper, src_lower) = decode_half_block_parts(src);
     let (dst_upper, dst_lower) = decode_half_block_parts(dst);
 

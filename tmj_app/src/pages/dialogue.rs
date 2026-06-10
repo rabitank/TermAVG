@@ -509,7 +509,7 @@ impl EventDispatcher for DialogueScene {
             return;
         }
         match key.code {
-            KeyCode::Enter | KeyCode::Backspace => {
+            KeyCode::Enter | KeyCode::Backspace | KeyCode::Char(' ') => {
                 if let Err(e) = self.on_try_push_dialouge() {
                     info!("On key next session failed: {}", e);
                 }

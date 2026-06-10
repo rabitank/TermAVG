@@ -3,9 +3,9 @@ resolver = "3"
 members = [
     "tmj_app",
     "tmj_core",
-    "tmj_egui",
     "tmj_macro",
     "tmj_terminal",
+    "tmj_wgpu",
 ]
 
 [workspace.lints.clippy]
