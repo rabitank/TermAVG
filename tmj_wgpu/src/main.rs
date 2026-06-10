@@ -5,7 +5,12 @@ use std::time::{self, Duration};
 
 use anyhow::Context;
 use chrono::{FixedOffset, Utc};
-use ratatui::Terminal;
+use ratatui::{
+    layout::{Constraint, Direction, Layout},
+    style::{Modifier, Style},
+    widgets::{Block, Borders, List, ListItem, Paragraph},
+    Frame, Terminal,
+};
 use ratatui_wgpu::{Builder, Dimensions, Font, WgpuBackend};
 use tmj_app::app::App;
 use tmj_app::audio::AUDIOM;
@@ -34,10 +39,23 @@ use crossterm::event::{
 };
 
 //// Font data ////
-// static FONT_DATA: &[u8] = include_bytes!("./MapleMono-NF-CN-Regular.ttf");
-// static FONT_DATA: &[u8] = include_bytes!("./SarasaTermCL-Regular.ttf");
 static FONT_DATA: &[u8] = include_bytes!("./Ligaconsolaslxgw.ttf");
-//
+
+//// 窗口大小预设 ////
+struct SizePreset {
+    name: &'static str,
+    desc: &'static str,
+    cell_h: u32,
+    cell_w: u32,
+    font_size: u32,
+}
+
+const PRESETS: [SizePreset; 3] = [
+    SizePreset { name: "1K",  desc: "1680×938 +padding", cell_h: 14, cell_w: 7,  font_size: 14 },
+    SizePreset { name: "2K",  desc: "2160×1206 +padding", cell_h: 18, cell_w: 9,  font_size: 18 },
+    SizePreset { name: "4K",  desc: "2640×1474 +padding", cell_h: 22, cell_w: 11, font_size: 22 },
+];
+
 //// 东八区时间格式化 ////
 struct ChinaLocalTime;
 impl FormatTime for ChinaLocalTime {
@@ -80,7 +98,7 @@ fn screen_size() -> (f32, f32, f32) {
     (1920.0, 1080.0, 1.0)
 }
 
-//// 细胞尺寸 & 字号计算 ////
+//// 细胞尺寸 & 字号计算（基于实际显示器） ////
 fn eval_cell_size() -> (u32, u32, u32) {
     let (scr_w, scr_h, dpi) = screen_size();
     let rows = SETTING.resolution.1;
@@ -89,11 +107,9 @@ fn eval_cell_size() -> (u32, u32, u32) {
     let cell_h = (((raw / 2.0).floor() * 2.0) as u32).max(12).min(24);
     let cell_w = cell_h / 2;
     let font_size = cell_h;
-
     tracing::info!(
         "screen {scr_w}x{scr_h} dpi {dpi_f} cell {cell_w}x{cell_h} font_size {font_size}"
     );
-
     (font_size, cell_w, cell_h)
 }
 
@@ -174,73 +190,242 @@ fn convert_key_event(event: &KeyEvent, mods: &ModifiersState) -> Option<GameEven
     })
 }
 
-//// 应用状态 ////
-struct TuiApp {
+//// 启动器状态 ////
+struct LauncherState {
+    window: Arc<Window>,
+    term: Terminal<WgpuBackend<'static, 'static>>,
+    selected: usize,
+    fullscreen: bool,
+    size_preset: usize,
+    should_start: bool,
+    should_exit: bool,
+}
+
+impl LauncherState {
+    fn menu_labels(&self) -> Vec<String> {
+        vec![
+            format!("显示模式    {}", if self.fullscreen { "全屏" } else { "窗口" }),
+            format!(
+                "窗口大小    {} （{}）",
+                PRESETS[self.size_preset].name,
+                PRESETS[self.size_preset].desc
+            ),
+            "开始游戏".into(),
+            "退出".into(),
+        ]
+    }
+
+    fn item_count(&self) -> usize {
+        4
+    }
+}
+
+//// 游戏状态 ////
+struct GameState {
     app: App<WgpuBackend<'static, 'static>>,
-    last_tick: std::time::Instant,
+    window: Arc<Window>,
     receiver: Receiver<GameEvent>,
+    last_tick: std::time::Instant,
+}
+
+//// 阶段枚举 ////
+enum AppPhase {
+    Launch(LauncherState),
+    Game(GameState),
+}
+
+//// 启动器 UI ////
+fn draw_launcher(frame: &mut Frame, labels: &[String], selected: usize) {
+    let area = frame.area();
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints::<&[Constraint]>(&[
+            Constraint::Length(4),
+            Constraint::Length((labels.len() * 2 + 1) as u16),
+            Constraint::Length(3),
+        ])
+        .split(area);
+
+    // 标题
+    let title = Paragraph::new("TerminalLove")
+        .style(Style::default().add_modifier(Modifier::BOLD))
+        .block(Block::default().borders(Borders::ALL));
+    frame.render_widget(title, chunks[0]);
+
+    // 菜单列表
+    let list_items: Vec<ListItem> = labels
+        .iter()
+        .map(|s| ListItem::new(s.as_str()))
+        .collect();
+    let list = List::new(list_items)
+        .block(Block::default().borders(Borders::ALL))
+        .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
+        .highlight_symbol("> ");
+    let mut list_state = ratatui::widgets::ListState::default().with_selected(Some(selected));
+    frame.render_stateful_widget(list, chunks[1], &mut list_state);
+
+    // 提示
+    let hint = Paragraph::new("Arrow/Space/Enter/Esc");
+    frame.render_widget(hint, chunks[2]);
+}
+
+//// 创建 WgpuBackend + Terminal 辅助 ////
+fn create_backend_and_terminal(
+    window: &Arc<Window>,
+    font_size: u32,
+    cell_w: u32,
+    cell_h: u32,
+    cols: u32,
+    rows: u32,
+) -> Terminal<WgpuBackend<'static, 'static>> {
+    let font = Font::new(FONT_DATA).unwrap();
+    let pix_w = cols * cell_w;
+    let pix_h = rows * cell_h;
+    let dims = Dimensions {
+        width: NonZeroU32::new(pix_w).unwrap(),
+        height: NonZeroU32::new(pix_h).unwrap(),
+    };
+    let backend = pollster::block_on(
+        Builder::from_font(font)
+            .with_font_size_px(font_size)
+            .with_dimensions(dims)
+            .with_bg_color(DARK_GRAY)
+            .build_with_target(window.clone()),
+    )
+    .unwrap();
+    Terminal::new(backend).unwrap()
 }
 
 //// winit ApplicationHandler ////
 struct AppHandler {
-    tui_app: Option<TuiApp>,
-    window: Option<Arc<Window>>,
+    phase: Option<AppPhase>,
     modifiers: ModifiersState,
 }
 
-impl ApplicationHandler for AppHandler {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        tracing::info!("creating window and wgpu backend");
+impl AppHandler {
+    /// 从启动器过渡到游戏
+    fn init_game(&mut self, event_loop: &ActiveEventLoop, fullscreen: bool, size_preset: usize) {
+        let cols = SETTING.resolution.0 as u32;
+        let rows = SETTING.resolution.1 as u32;
 
-        // 创建全屏窗口
-        let window = Arc::new(
-            event_loop
-                .create_window(WindowAttributes::default())
-                .unwrap(),
-        );
-        window.set_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
+        let (window, font_size, cell_w, cell_h) = if fullscreen {
+            // 全屏：基于实际显示器计算
+            let (font_size, cell_w, cell_h) = eval_cell_size();
+            let window = Arc::new(
+                event_loop
+                    .create_window(WindowAttributes::default())
+                    .unwrap(),
+            );
+            window.set_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
+            (window, font_size, cell_w, cell_h)
+        } else {
+            // 窗口化：使用预设尺寸
+            let preset = &PRESETS[size_preset];
+            let inner_w = cols * preset.cell_w;
+            let inner_h = rows * preset.cell_h;
+            let window = Arc::new(
+                event_loop
+                    .create_window(
+                        WindowAttributes::default()
+                            .with_inner_size(winit::dpi::LogicalSize::new(
+                                inner_w as f64,
+                                inner_h as f64,
+                            ))
+                            .with_resizable(false)
+                            .with_title("TerminalLove"),
+                    )
+                    .unwrap(),
+            );
+            (window, preset.font_size, preset.cell_w, preset.cell_h)
+        };
 
-        // 初始化事件系统（NoopProvider：事件来源是 winit，不是 crossterm）
+        // 初始化事件系统
         let (looper, receiver) = EventLooper::new_with_provider(256, Box::new(NoopProvider));
         EventSender::init(looper.sender.clone());
         EventManager::init(looper);
         EventManager::with_looper(|l| l.cool_down(Duration::from_millis(100)));
 
-        // 计算字号和细胞尺寸
-        let (font_size, cell_w, cell_h) = eval_cell_size();
-        let cols = SETTING.resolution.0;
-        let rows = SETTING.resolution.1;
-
-        // 创建 ratatui-wgpu 后端
-        let font = Font::new(FONT_DATA).unwrap();
-        let pix_w = (cols as u32) * cell_w;
-        let pix_h = (rows as u32) * cell_h;
-        let dims = Dimensions {
-            width: NonZeroU32::new(pix_w).unwrap(),
-            height: NonZeroU32::new(pix_h).unwrap(),
-        };
-        tracing::info!("pixmap {pix_w}x{pix_h}");
-        let backend = pollster::block_on(
-            Builder::from_font(font)
-                .with_font_size_px(font_size)
-                .with_dimensions(dims)
-                .with_bg_color(DARK_GRAY)
-                .build_with_target(window.clone()),
-        )
-        .unwrap();
-
-        let terminal = Terminal::new(backend).unwrap();
+        let terminal = create_backend_and_terminal(&window, font_size, cell_w, cell_h, cols, rows);
         let app = App::new(terminal);
-        let last_tick = time::Instant::now();
 
-        self.tui_app = Some(TuiApp {
+        self.phase = Some(AppPhase::Game(GameState {
             app,
-            last_tick,
+            window,
             receiver,
-        });
-        self.window = Some(window);
+            last_tick: time::Instant::now(),
+        }));
+    }
 
-        tracing::info!("wgpu backend ready");
+    fn handle_launch_key(launch: &mut LauncherState, key: Key<&str>) {
+        let count = launch.item_count();
+        match key {
+            Key::Named(NamedKey::ArrowDown) => {
+                launch.selected = (launch.selected + 1) % count;
+            }
+            Key::Named(NamedKey::ArrowUp) => {
+                launch.selected = launch.selected.checked_sub(1).unwrap_or(count - 1);
+            }
+            Key::Named(NamedKey::Enter) => match launch.selected {
+                0 => launch.fullscreen = !launch.fullscreen,
+                1 => launch.size_preset = (launch.size_preset + 1) % PRESETS.len(),
+                2 => launch.should_start = true,
+                _ => launch.should_exit = true,
+            },
+            Key::Character(" ") => match launch.selected {
+                0 => launch.fullscreen = !launch.fullscreen,
+                1 => launch.size_preset = (launch.size_preset + 1) % PRESETS.len(),
+                _ => {}
+            },
+            Key::Named(NamedKey::Escape) => launch.should_exit = true,
+            _ => {}
+        }
+    }
+}
+
+impl ApplicationHandler for AppHandler {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        tracing::info!("creating launcher window");
+
+        // 固定小窗口：50×18 细胞 @ font_size=16 → 400×288 内部分辨率
+        let launcher_cols: u32 = 50;
+        let launcher_rows: u32 = 18;
+        let launcher_font_size: u32 = 16;
+        let launcher_cell_w: u32 = 8;
+        let launcher_cell_h: u32 = 16;
+
+        let window = Arc::new(
+            event_loop
+                .create_window(
+                    WindowAttributes::default()
+                        .with_inner_size(winit::dpi::LogicalSize::new(
+                            (launcher_cols * launcher_cell_w) as f64,
+                            (launcher_rows * launcher_cell_h) as f64,
+                        ))
+                        .with_resizable(false)
+                        .with_title("TerminalLove"),
+                )
+                .unwrap(),
+        );
+
+        let term = create_backend_and_terminal(
+            &window,
+            launcher_font_size,
+            launcher_cell_w,
+            launcher_cell_h,
+            launcher_cols,
+            launcher_rows,
+        );
+
+        self.phase = Some(AppPhase::Launch(LauncherState {
+            window,
+            term,
+            selected: 0,
+            fullscreen: true,
+            size_preset: 1,
+            should_start: false,
+            should_exit: false,
+        }));
     }
 
     fn window_event(
@@ -249,122 +434,157 @@ impl ApplicationHandler for AppHandler {
         _window_id: winit::window::WindowId,
         event: WindowEvent,
     ) {
-        match event {
-            // 关闭请求
-            WindowEvent::CloseRequested => {
-                event_loop.exit();
-            }
-
-            // 键盘事件
-            WindowEvent::KeyboardInput {
-                event,
-                is_synthetic: false,
-                ..
-            } => {
-                if let Some(game_event) = convert_key_event(&event, &self.modifiers) {
-                    let _ = EventSender::sender_event(game_event);
+        match &mut self.phase {
+            Some(AppPhase::Launch(launch)) => match event {
+                WindowEvent::CloseRequested => {
+                    launch.should_exit = true;
                 }
-            }
-
-            // 修饰键状态变化
-            WindowEvent::ModifiersChanged(mods) => {
-                self.modifiers = mods.state();
-            }
-
-            // 鼠标按键（坐标固定 0,0，游戏只需按键类型）
-            WindowEvent::MouseInput {
-                state, button, ..
-            } => {
-                let ct_button = match button {
-                    WinitMouseBtn::Left => CtMouseBtn::Left,
-                    WinitMouseBtn::Right => CtMouseBtn::Right,
-                    WinitMouseBtn::Middle => CtMouseBtn::Middle,
-                    _ => return,
-                };
-                let kind = match state {
-                    ElementState::Pressed => MouseEventKind::Down(ct_button),
-                    ElementState::Released => MouseEventKind::Up(ct_button),
-                };
-                let mut mods = KeyModifiers::NONE;
-                if self.modifiers.shift_key() { mods |= KeyModifiers::SHIFT; }
-                if self.modifiers.control_key() { mods |= KeyModifiers::CONTROL; }
-                if self.modifiers.alt_key() { mods |= KeyModifiers::ALT; }
-                if self.modifiers.super_key() { mods |= KeyModifiers::SUPER; }
-                let ct_event = crossterm::event::Event::Mouse(MouseEvent {
-                    kind,
-                    column: 0,
-                    row: 0,
-                    modifiers: mods,
-                });
-                let _ = EventSender::sender_event(convert_crossterm_event(ct_event));
-            }
-
-            // 窗口大小变化
-            WindowEvent::Resized(size) => {
-                if let Some(tui) = &mut self.tui_app {
-                    tui.app.terminal.backend_mut().resize(size.width, size.height);
+                WindowEvent::KeyboardInput {
+                    event,
+                    is_synthetic: false,
+                    ..
+                } => {
+                    if event.state != ElementState::Released {
+                        return;
+                    }
+                    Self::handle_launch_key(launch, event.logical_key.as_ref());
                 }
-            }
+                _ => {}
+            },
 
-            _ => {}
+            Some(AppPhase::Game(game)) => match event {
+                WindowEvent::CloseRequested => {
+                    event_loop.exit();
+                }
+                WindowEvent::KeyboardInput {
+                    event,
+                    is_synthetic: false,
+                    ..
+                } => {
+                    if let Some(game_event) = convert_key_event(&event, &self.modifiers) {
+                        let _ = EventSender::sender_event(game_event);
+                    }
+                }
+                WindowEvent::ModifiersChanged(mods) => {
+                    self.modifiers = mods.state();
+                }
+                WindowEvent::MouseInput {
+                    state, button, ..
+                } => {
+                    let ct_button = match button {
+                        WinitMouseBtn::Left => CtMouseBtn::Left,
+                        WinitMouseBtn::Right => CtMouseBtn::Right,
+                        WinitMouseBtn::Middle => CtMouseBtn::Middle,
+                        _ => return,
+                    };
+                    let kind = match state {
+                        ElementState::Pressed => MouseEventKind::Down(ct_button),
+                        ElementState::Released => MouseEventKind::Up(ct_button),
+                    };
+                    let mut mods = KeyModifiers::NONE;
+                    if self.modifiers.shift_key() {
+                        mods |= KeyModifiers::SHIFT;
+                    }
+                    if self.modifiers.control_key() {
+                        mods |= KeyModifiers::CONTROL;
+                    }
+                    if self.modifiers.alt_key() {
+                        mods |= KeyModifiers::ALT;
+                    }
+                    if self.modifiers.super_key() {
+                        mods |= KeyModifiers::SUPER;
+                    }
+                    let ct_event = crossterm::event::Event::Mouse(MouseEvent {
+                        kind,
+                        column: 0,
+                        row: 0,
+                        modifiers: mods,
+                    });
+                    let _ = EventSender::sender_event(convert_crossterm_event(ct_event));
+                }
+                WindowEvent::Resized(size) => {
+                    game.app.terminal.backend_mut().resize(size.width, size.height);
+                }
+                _ => {}
+            },
+
+            None => {}
         }
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        let Some(tui_app) = &mut self.tui_app else {
-            return;
-        };
-        let Some(window) = &self.window else {
-            return;
-        };
-
-        let tick = tui_app.last_tick.elapsed();
-        tui_app.last_tick = time::Instant::now();
-
-        ////// 事件阶段 //////
-        {
-            let _span = info_span!("events");
-            EventManager::with_looper(|l| {
-                if !l.check_is_warmup() {
-                    l.drain_buffer(&tui_app.receiver);
-                }
-            });
-        }
-
-        ////// 游戏逻辑阶段 //////
-        {
-            let mut game = tui_app.app.game.borrow_mut();
-            while let Ok(event) = tui_app.receiver.try_recv() {
-                if !game.handle_event(&event).context("event").is_ok_and(|v| v) {
+        match &mut self.phase {
+            Some(AppPhase::Launch(launch)) => {
+                if launch.should_exit {
+                    event_loop.exit();
                     return;
                 }
+                if launch.should_start {
+                    let fullscreen = launch.fullscreen;
+                    let size_preset = launch.size_preset;
+                    self.phase = None;
+                    self.init_game(event_loop, fullscreen, size_preset);
+                    return;
+                }
+
+                let labels = launch.menu_labels();
+                let selected = launch.selected;
+                let _ = launch.term.draw(|f| draw_launcher(f, &labels, selected));
+
+                launch.window.request_redraw();
             }
-            game.handle_tick(tick);
-            for cmd in CmdBuffer::take_commands() {
-                let _ = game.handle_cmd(&cmd);
+
+            Some(AppPhase::Game(game)) => {
+                let tick = game.last_tick.elapsed();
+                game.last_tick = time::Instant::now();
+
+                // 事件阶段
+                {
+                    let _span = info_span!("events");
+                    EventManager::with_looper(|l| {
+                        if !l.check_is_warmup() {
+                            l.drain_buffer(&game.receiver);
+                        }
+                    });
+                }
+
+                // 游戏逻辑阶段
+                {
+                    let mut g = game.app.game.borrow_mut();
+                    while let Ok(event) = game.receiver.try_recv() {
+                        if !g.handle_event(&event).context("event").is_ok_and(|v| v) {
+                            return;
+                        }
+                    }
+                    g.handle_tick(tick);
+                    for cmd in CmdBuffer::take_commands() {
+                        let _ = g.handle_cmd(&cmd);
+                    }
+                }
+
+                // 渲染阶段
+                {
+                    let g = game.app.game.borrow_mut();
+                    let _ = game.app.terminal.draw(|f| g.draw(f));
+                }
+
+                // 退出检测
+                if game.app.game.borrow().game_flow.borrow().is_ready_quit() {
+                    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        AUDIOM.with(|a| {
+                            let _ = a.replace(None);
+                        });
+                    }));
+                    EventManager::with_looper(|l| l.stop());
+                    event_loop.exit();
+                    return;
+                }
+
+                game.window.request_redraw();
             }
-        }
 
-        ////// 渲染阶段 //////
-        {
-            let game = tui_app.app.game.borrow_mut();
-            let _ = tui_app.app.terminal.draw(|f| game.draw(f));
+            None => {}
         }
-
-        ////// 清理阶段：退出检测 //////
-        if tui_app.app.game.borrow().game_flow.borrow().is_ready_quit() {
-            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                AUDIOM.with(|a| {
-                    let _ = a.replace(None);
-                });
-            }));
-            EventManager::with_looper(|l| l.stop());
-            event_loop.exit();
-            return;
-        }
-
-        // 请求下一帧
-        window.request_redraw();
     }
 }
 
@@ -373,8 +593,7 @@ fn main() {
 
     let event_loop = EventLoop::new().unwrap();
     let mut handler = AppHandler {
-        tui_app: None,
-        window: None,
+        phase: None,
         modifiers: ModifiersState::default(),
     };
 
