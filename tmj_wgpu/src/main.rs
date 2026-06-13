@@ -14,7 +14,7 @@ use ratatui::{
 use ratatui_wgpu::{Builder, Dimensions, Font, WgpuBackend};
 use tmj_app::app::App;
 use tmj_app::audio::AUDIOM;
-use tmj_app::art::theme::DARK_GRAY;
+use tmj_app::art::theme::{BLACK, DARK_GRAY, LIGHT_GRAY, MID_GRAY, WHITE};
 use tmj_app::setting::SETTING;
 use tmj_core::command::CmdBuffer;
 use tmj_core::event::handler::EventDispatcher;
@@ -237,6 +237,7 @@ enum AppPhase {
 //// 启动器 UI ////
 fn draw_launcher(frame: &mut Frame, labels: &[String], selected: usize) {
     let area = frame.area();
+    let border_style = Style::new().fg(MID_GRAY);
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -249,24 +250,25 @@ fn draw_launcher(frame: &mut Frame, labels: &[String], selected: usize) {
 
     // 标题
     let title = Paragraph::new("TerminalLove")
-        .style(Style::default().add_modifier(Modifier::BOLD))
-        .block(Block::default().borders(Borders::ALL));
+        .style(Style::new().fg(WHITE).add_modifier(Modifier::BOLD))
+        .block(Block::default().borders(Borders::ALL).border_style(border_style));
     frame.render_widget(title, chunks[0]);
 
     // 菜单列表
     let list_items: Vec<ListItem> = labels
         .iter()
-        .map(|s| ListItem::new(s.as_str()))
+        .map(|s| ListItem::new(s.as_str()).style(Style::new().fg(LIGHT_GRAY)))
         .collect();
     let list = List::new(list_items)
-        .block(Block::default().borders(Borders::ALL))
-        .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
+        .block(Block::default().borders(Borders::ALL).border_style(border_style))
+        .highlight_style(Style::new().fg(BLACK).bg(WHITE))
         .highlight_symbol("> ");
     let mut list_state = ratatui::widgets::ListState::default().with_selected(Some(selected));
     frame.render_stateful_widget(list, chunks[1], &mut list_state);
 
     // 提示
-    let hint = Paragraph::new("Arrow/Space/Enter/Esc");
+    let hint = Paragraph::new("Arrow/Space/Enter/Esc")
+        .style(Style::new().fg(MID_GRAY));
     frame.render_widget(hint, chunks[2]);
 }
 

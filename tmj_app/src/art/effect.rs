@@ -100,7 +100,7 @@ pub fn text(
                 _ => Color::Rgb(255, 0, 0),
             };
             let color = blend(target_col, cell_color, percentage);
-            cell.set_style(Style::new().fg(color));
+            cell.set_style(Style::new().fg(color).bold());
         }
     }
 }
