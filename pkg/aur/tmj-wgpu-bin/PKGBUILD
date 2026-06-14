@@ -1,0 +1,28 @@
+# Maintainer: rabitank
+pkgname=tmj-wgpu-bin
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="TerminalLove - GPU windowed mode"
+arch=('x86_64' 'aarch64')
+url="https://github.com/rabitank/TerminalLove"
+license=('MIT')
+depends=('alsa-lib' 'vulkan-icd-loader' 'libx11' 'libxcb' 'libxkbcommon')
+optdepends=(
+    'tmj-bin: 终端模式'
+    'wayland: Wayland 支持'
+    'vulkan-intel: Intel GPU 驱动'
+    'vulkan-radeon: AMD GPU 驱动'
+    'nvidia-utils: NVIDIA GPU 驱动'
+)
+conflicts=('tmj')
+
+source_x86_64=("$pkgname-$pkgver-x86_64.zip::https://github.com/rabitank/TerminalLove/releases/download/v${pkgver}/tmj-wgpu-x86_64-unknown-linux-gnu-v${pkgver}.zip")
+source_aarch64=("$pkgname-$pkgver-aarch64.zip::https://github.com/rabitank/TerminalLove/releases/download/v${pkgver}/tmj-wgpu-aarch64-unknown-linux-gnu-v${pkgver}.zip")
+sha256sums_x86_64=('SKIP')
+sha256sums_aarch64=('SKIP')
+
+package() {
+    install -Dm755 "$srcdir/tmj_wgpu"  "$pkgdir/usr/bin/tmj_wgpu"
+    install -Dm644 "$srcdir/README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
+    install -Dm644 "$srcdir/LICENSE"   "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

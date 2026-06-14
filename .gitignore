@@ -1,4 +1,5 @@
 /target
+/staging
 /script.fs
 /save
 script_env.txt

@@ -1,0 +1,31 @@
+pkgname=tmj
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="TerminalLove - A pixel-art visual novel engine rendered in the terminal"
+arch=('x86_64')
+url="https://github.com/rabitank/TerminalLove"
+license=('MIT')
+makedepends=('rust' 'cargo')
+depends=('alsa-lib' 'vulkan-icd-loader' 'libx11' 'libxcb' 'libxkbcommon')
+optdepends=(
+    'wayland: Wayland 支持'
+    'vulkan-intel: Intel GPU 驱动'
+    'vulkan-radeon: AMD GPU 驱动'
+    'nvidia-utils: NVIDIA GPU 驱动'
+)
+
+source=("$pkgname-$pkgver.tar.gz::https://github.com/rabitank/TerminalLove/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+    cd "TerminalLove-$pkgver/engine"
+    cargo build --release --locked -p tmj_terminal -p tmj_wgpu
+}
+
+package() {
+    cd "TerminalLove-$pkgver/engine"
+    install -Dm755 "target/release/tmj_terminal" "$pkgdir/usr/bin/tmj_terminal"
+    install -Dm755 "target/release/tmj_wgpu"    "$pkgdir/usr/bin/tmj_wgpu"
+    install -Dm644 README.md                     "$pkgdir/usr/share/doc/tmj/README.md"
+    install -Dm644 LICENSE                       "$pkgdir/usr/share/licenses/tmj/LICENSE"
+}

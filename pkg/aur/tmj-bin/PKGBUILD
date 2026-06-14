@@ -1,0 +1,23 @@
+# Maintainer: rabitank
+pkgname=tmj-bin
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="TerminalLove - TUI pixel-art visual novel engine"
+arch=('x86_64' 'aarch64')
+url="https://github.com/rabitank/TerminalLove"
+license=('MIT')
+depends=('alsa-lib')
+optdepends=('tmj-wgpu-bin: GPU 窗口模式')
+provides=('tmj')
+conflicts=('tmj')
+
+source_x86_64=("$pkgname-$pkgver-x86_64.zip::https://github.com/rabitank/TerminalLove/releases/download/v${pkgver}/tmj-x86_64-unknown-linux-gnu-v${pkgver}.zip")
+source_aarch64=("$pkgname-$pkgver-aarch64.zip::https://github.com/rabitank/TerminalLove/releases/download/v${pkgver}/tmj-aarch64-unknown-linux-gnu-v${pkgver}.zip")
+sha256sums_x86_64=('SKIP')
+sha256sums_aarch64=('SKIP')
+
+package() {
+    install -Dm755 "$srcdir/tmj_terminal" "$pkgdir/usr/bin/tmj_terminal"
+    install -Dm644 "$srcdir/README.md"   "$pkgdir/usr/share/doc/$pkgname/README.md"
+    install -Dm644 "$srcdir/LICENSE"     "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

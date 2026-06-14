@@ -1,0 +1,121 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and package zip
+        shell: pwsh
+        run: |
+          $v = '${{ github.ref_name }}' -replace '^v', ''
+          ./scripts/build.ps1 -Target x86_64-pc-windows-msvc -Version $v
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: target/artifacts/*.zip
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cross-compilation deps
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: Build x86_64
+        run: TMJ_VERSION="${GITHUB_REF_NAME#v}" bash scripts/build.sh x86_64-unknown-linux-gnu
+      - name: Build aarch64
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+        run: TMJ_VERSION="${GITHUB_REF_NAME#v}" bash scripts/build.sh aarch64-unknown-linux-gnu
+      - name: Package all zips
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          for target in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu; do
+            for variant in tmj tmj-wgpu; do
+              bash scripts/package-zip.sh "$target" "$V" "$variant"
+            done
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-zip
+          path: target/artifacts/tmj*.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-staging
+          path: staging/
+
+  package-deb:
+    needs: build-linux
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+        variant:
+          - tmj
+          - tmj-wgpu
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-staging
+          path: staging
+      - name: Package .deb
+        run: bash scripts/package-deb.sh ${{ matrix.target }} '${{ github.ref_name }}' ${{ matrix.variant }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb-${{ matrix.target }}-${{ matrix.variant }}
+          path: target/artifacts/*.deb
+
+  package-arch:
+    needs: build-linux
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+        variant:
+          - tmj
+          - tmj-wgpu
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-staging
+          path: staging
+      - name: Package .pkg.tar.zst
+        run: bash scripts/package-arch.sh ${{ matrix.target }} '${{ github.ref_name }}' ${{ matrix.variant }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arch-${{ matrix.target }}-${{ matrix.variant }}
+          path: target/artifacts/*.pkg.tar.zst
+
+  draft:
+    needs: [build-windows, build-linux, package-deb, package-arch]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Create draft release
+        uses: softprops/action-gh-release@v3
+        with:
+          draft: true
+          name: ${{ github.ref_name }}
+          files: |
+            artifacts/windows/*.zip
+            artifacts/linux-zip/*.zip
+            artifacts/deb-*/*.deb
+            artifacts/arch-*/*.pkg.tar.zst

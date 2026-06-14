@@ -1,0 +1,21 @@
+pkgname=tmj-bin
+pkgver=__VERSION__
+pkgrel=1
+pkgdesc="TerminalLove - A pixel-art visual novel engine rendered in the terminal"
+arch=('x86_64' 'aarch64')
+url="https://github.com/rabitank/TerminalLove"
+license=('MIT')
+depends=('alsa-lib')
+
+source=(
+    "tmj_terminal"
+    "README.md"
+    "LICENSE"
+)
+sha256sums=('SKIP' 'SKIP' 'SKIP')
+
+package() {
+    install -Dm755 "$srcdir/tmj_terminal" "$pkgdir/usr/bin/tmj_terminal"
+    install -Dm644 "$srcdir/README.md"   "$pkgdir/usr/share/doc/tmj/README.md"
+    install -Dm644 "$srcdir/LICENSE"     "$pkgdir/usr/share/licenses/tmj/LICENSE"
+}

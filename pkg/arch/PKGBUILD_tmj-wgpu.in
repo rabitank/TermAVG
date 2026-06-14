@@ -1,0 +1,27 @@
+pkgname=tmj-wgpu-bin
+pkgver=__VERSION__
+pkgrel=1
+pkgdesc="TerminalLove - A pixel-art visual novel engine rendered in the terminal (GPU windowed mode)"
+arch=('x86_64' 'aarch64')
+url="https://github.com/rabitank/TerminalLove"
+license=('MIT')
+depends=('alsa-lib' 'vulkan-icd-loader' 'libx11' 'libxcb' 'libxkbcommon')
+optdepends=(
+    'wayland: Wayland 支持'
+    'vulkan-intel: Intel GPU 驱动'
+    'vulkan-radeon: AMD GPU 驱动'
+    'nvidia-utils: NVIDIA GPU 驱动'
+)
+
+source=(
+    "tmj_wgpu"
+    "README.md"
+    "LICENSE"
+)
+sha256sums=('SKIP' 'SKIP' 'SKIP')
+
+package() {
+    install -Dm755 "$srcdir/tmj_wgpu"  "$pkgdir/usr/bin/tmj_wgpu"
+    install -Dm644 "$srcdir/README.md" "$pkgdir/usr/share/doc/tmj-wgpu/README.md"
+    install -Dm644 "$srcdir/LICENSE"   "$pkgdir/usr/share/licenses/tmj-wgpu/LICENSE"
+}
