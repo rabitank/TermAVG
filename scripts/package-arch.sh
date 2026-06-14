@@ -8,7 +8,6 @@ VERSION="${VERSION#v}"
 
 case "$TARGET" in
     x86_64-unknown-linux-gnu)   ARCH_LINUX="x86_64" ;;
-    aarch64-unknown-linux-gnu)  ARCH_LINUX="aarch64" ;;
     *) echo "Unsupported target for arch: $TARGET"; exit 1 ;;
 esac
 

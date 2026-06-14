@@ -8,7 +8,6 @@ VERSION="${VERSION#v}"
 
 case "$TARGET" in
     x86_64-unknown-linux-gnu)   DEB_ARCH="amd64" ;;
-    aarch64-unknown-linux-gnu)  DEB_ARCH="arm64" ;;
     *) echo "Unsupported target for .deb: $TARGET"; exit 1 ;;
 esac
 

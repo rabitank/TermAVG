@@ -29,21 +29,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install deps
         run: bash scripts/install-cross-deps.sh
-      - name: Build x86_64
+      - name: Build
         run: TMJ_VERSION="${GITHUB_REF_NAME#v}" bash scripts/build.sh x86_64-unknown-linux-gnu
-      - name: Build aarch64
-        env:
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
-          PKG_CONFIG_ALLOW_CROSS: "1"
-          PKG_CONFIG_LIBDIR: /usr/lib/aarch64-linux-gnu/pkgconfig
-        run: TMJ_VERSION="${GITHUB_REF_NAME#v}" bash scripts/build.sh aarch64-unknown-linux-gnu
       - name: Package all zips
         run: |
           V="${GITHUB_REF_NAME#v}"
-          for target in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu; do
-            for variant in tmj tmj-wgpu; do
-              bash scripts/package-zip.sh "$target" "$V" "$variant"
-            done
+          for variant in tmj tmj-wgpu; do
+            bash scripts/package-zip.sh x86_64-unknown-linux-gnu "$V" "$variant"
           done
       - uses: actions/upload-artifact@v4
         with:
@@ -59,9 +51,6 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target:
-          - x86_64-unknown-linux-gnu
-          - aarch64-unknown-linux-gnu
         variant:
           - tmj
           - tmj-wgpu
@@ -72,10 +61,10 @@ jobs:
           name: linux-staging
           path: staging
       - name: Package .deb
-        run: bash scripts/package-deb.sh ${{ matrix.target }} '${{ github.ref_name }}' ${{ matrix.variant }}
+        run: bash scripts/package-deb.sh x86_64-unknown-linux-gnu '${{ github.ref_name }}' ${{ matrix.variant }}
       - uses: actions/upload-artifact@v4
         with:
-          name: deb-${{ matrix.target }}-${{ matrix.variant }}
+          name: deb-${{ matrix.variant }}
           path: target/artifacts/*.deb
 
   package-arch:
@@ -83,9 +72,6 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target:
-          - x86_64-unknown-linux-gnu
-          - aarch64-unknown-linux-gnu
         variant:
           - tmj
           - tmj-wgpu
@@ -96,10 +82,10 @@ jobs:
           name: linux-staging
           path: staging
       - name: Package .pkg.tar.zst
-        run: bash scripts/package-arch.sh ${{ matrix.target }} '${{ github.ref_name }}' ${{ matrix.variant }}
+        run: bash scripts/package-arch.sh x86_64-unknown-linux-gnu '${{ github.ref_name }}' ${{ matrix.variant }}
       - uses: actions/upload-artifact@v4
         with:
-          name: arch-${{ matrix.target }}-${{ matrix.variant }}
+          name: arch-${{ matrix.variant }}
           path: target/artifacts/*.pkg.tar.zst
 
   draft:

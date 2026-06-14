@@ -4,8 +4,6 @@ set -euo pipefail
 TARGET="${1:?Usage: $0 <target-triple>}"
 VERSION="${TMJ_VERSION:-0.0.0}"
 
-rustup target add "$TARGET" --no-self-update 2>/dev/null || true
-
 cargo build --release --locked --target "$TARGET" -p tmj_terminal -p tmj_wgpu
 
 STAGING="staging/${TARGET}"
