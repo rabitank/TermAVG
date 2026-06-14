@@ -35,12 +35,12 @@ docker run --rm \
         pacman -Sy --noconfirm base-devel &&
         useradd -m builder &&
         echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers &&
-        chown -R builder:builder /workspace &&
+        chown -R builder:builder /workspace/${PKG_DIR} &&
         sudo -u builder bash -c 'CARCH=${ARCH_LINUX} makepkg -d --noconfirm'
     "
 
-mkdir -p target/artifacts
-cp "${PKG_DIR}/${ARTIFACT}" target/artifacts/
-rm -f "${PKG_DIR}/${BINARY}" "${PKG_DIR}/README.md" "${PKG_DIR}/LICENSE" "${PKG_DIR}/PKGBUILD"
+sudo mkdir -p target/artifacts
+sudo cp "${PKG_DIR}/${ARTIFACT}" target/artifacts/
+sudo rm -f "${PKG_DIR}/${BINARY}" "${PKG_DIR}/README.md" "${PKG_DIR}/LICENSE" "${PKG_DIR}/PKGBUILD"
 
 echo "Built target/artifacts/${ARTIFACT}"
