@@ -509,7 +509,13 @@ impl EventDispatcher for DialogueScene {
         }
 
         match key.code {
-            KeyCode::Enter | KeyCode::Backspace | KeyCode::Char(' ') if key.is_press() || key.modifiers.contains(KeyModifiers::CONTROL) => {
+            KeyCode::Enter | KeyCode::Backspace | KeyCode::Char(' ') if key.is_press() => {
+                if let Err(e) = self.on_try_push_dialouge() {
+                    info!("On key next session failed: {}", e);
+                }
+            }
+            KeyCode::Char('a') | KeyCode::Char('A') => {
+                // allow press + repeat for quick skip
                 if let Err(e) = self.on_try_push_dialouge() {
                     info!("On key next session failed: {}", e);
                 }
