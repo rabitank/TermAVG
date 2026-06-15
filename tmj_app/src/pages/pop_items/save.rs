@@ -160,9 +160,12 @@ impl EventDispatcher for SavePopItem {
         if self.is_hide() {
             return;
         }
+        if key.is_release() {
+            return;
+        }
         match self.edit_state {
             EditState::Selecting => match key.code {
-                KeyCode::Enter if key.is_release() => {
+                KeyCode::Enter if key.is_press() => {
                     if let Some(slot) = self.slot_list.borrow_mut().get_current_slot() {
                         if slot.path.is_some() {
                             let now = if let Ok(local) = time::OffsetDateTime::now_local() {
@@ -177,22 +180,21 @@ impl EventDispatcher for SavePopItem {
                         }
                     }
                 }
-                KeyCode::Char('q') | KeyCode::Esc if key.is_release() => {
+                KeyCode::Char('q') | KeyCode::Esc if key.is_press() => {
                     self.hide();
                 }
-                _ if !key.is_release() => {
+                _ => {
                     self.slot_list.borrow_mut().on_key(key);
                 }
-                _ => {}
             },
             EditState::Creating => match key.code {
-                KeyCode::Backspace if !key.is_release() => {
+                KeyCode::Backspace => {
                     self.renaming.pop();
                 }
-                KeyCode::Char(c) if !key.is_release() && is_safe_filename_char(c) => {
+                KeyCode::Char(c) if is_safe_filename_char(c) => {
                     self.renaming.push(c);
                 }
-                KeyCode::Enter if key.is_release() => {
+                KeyCode::Enter if key.is_press() => {
                     if let Some(slot) = self.slot_list.borrow_mut().get_current_slot() {
                         if self.renaming.is_empty() {
                             self.renaming = "unnamed".into();
@@ -203,7 +205,7 @@ impl EventDispatcher for SavePopItem {
                     }
                     self.edit_state = EditState::Selecting;
                 }
-                KeyCode::Esc if key.is_release() => {
+                KeyCode::Esc if key.is_press() => {
                     self.renaming.clear();
                     self.edit_state = EditState::Selecting;
                 }

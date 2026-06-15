@@ -173,8 +173,11 @@ impl EventDispatcher for DialogueHistoryLs {
         if self.is_hide() {
             return;
         }
+        if key.is_release() {
+            return;
+        }
 
-        if matches!(key.code, KeyCode::Esc | KeyCode::Char('q')) && key.is_release() {
+        if matches!(key.code, KeyCode::Esc | KeyCode::Char('q')) {
             self.hide();
             return;
         }
@@ -187,16 +190,16 @@ impl EventDispatcher for DialogueHistoryLs {
         let binding = HISTORY_LS.lock().unwrap();
         let records = binding.records();
         match key.code {
-            KeyCode::Up if key.is_press() => {
+            KeyCode::Up => {
                 if self.scroll_offset < total.saturating_sub(1) {
                     self.scroll_offset += 1;
                 }
             }
-            KeyCode::Down if key.is_press() => {
+            KeyCode::Down => {
                 self.scroll_offset = self.scroll_offset.saturating_sub(1);
             }
             // PageUp：向上翻页（更早）
-            KeyCode::PageUp if key.is_release() => {
+            KeyCode::PageUp if key.is_press() => {
                 let mut used_height = 0u16;
                 let max_offset = total.saturating_sub(1);
                 let mut new_offset = self.scroll_offset;
@@ -215,7 +218,7 @@ impl EventDispatcher for DialogueHistoryLs {
                 self.scroll_offset = new_offset.min(max_offset);
             }
             // PageDown：向下翻页（更新）
-            KeyCode::PageDown if key.is_release() => {
+            KeyCode::PageDown if key.is_press() => {
                 if self.scroll_offset == 0 {
                     return;
                 }
@@ -239,11 +242,11 @@ impl EventDispatcher for DialogueHistoryLs {
                 self.scroll_offset = new_offset;
             }
             // Home：跳到最旧的消息（偏移最大）
-            KeyCode::Home if key.is_release() => {
+            KeyCode::Home if key.is_press() => {
                 self.scroll_offset = total.saturating_sub(1);
             }
             // End：跳到最新的消息（偏移为 0）
-            KeyCode::End if key.is_release() => {
+            KeyCode::End if key.is_press() => {
                 self.scroll_offset = 0;
             }
             _ => {}

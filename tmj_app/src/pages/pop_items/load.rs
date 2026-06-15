@@ -208,32 +208,34 @@ impl EventDispatcher for LoadPopItem {
         if self.is_hide() {
             return;
         }
+        if key.is_release() {
+            return;
+        }
         match self.edit_state {
             EditState::Selecting => match key.code {
-                KeyCode::Enter if key.is_release() => {
+                KeyCode::Enter if key.is_press() => {
                     if let Some(slot) = self.slot_list.borrow_mut().get_current_slot() {
                         if slot.path.is_some() {
                             self.edit_state = EditState::Confirming;
                         }
                     }
                 }
-                KeyCode::Char('q') | KeyCode::Esc if key.is_release() => {
+                KeyCode::Char('q') | KeyCode::Esc if key.is_press() => {
                     self.hide();
                 }
-                _ if !key.is_release() => {
+                _ => {
                     self.slot_list.borrow_mut().on_key(key);
                 }
-                _ => {}
             },
             EditState::Confirming => match key.code {
-                KeyCode::Char('y') if key.is_release() => {
+                KeyCode::Char('y') if key.is_press() => {
                     if let Some(slot) = self.slot_list.borrow_mut().get_current_slot() {
                         CmdBuffer::push(GameCmd::LoadFrom(SaveSlot::Slots(slot.id)));
                     }
                     self.edit_state = EditState::Selecting;
                     self.hide();
                 }
-                KeyCode::Char('q') | KeyCode::Esc if key.is_release() => {
+                KeyCode::Char('q') | KeyCode::Esc if key.is_press() => {
                     self.edit_state = EditState::Selecting;
                 }
                 _ => {}

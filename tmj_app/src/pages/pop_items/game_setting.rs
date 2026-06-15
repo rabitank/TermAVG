@@ -230,13 +230,18 @@ impl EventDispatcher for GameSettingPopItem {
         if self.is_hide() {
             return;
         }
+        if key.is_release() {
+            return;
+        }
 
         match key.code {
-            KeyCode::Char('q') | KeyCode::Esc if key.is_release() => self.hide(),
-            KeyCode::Down if !key.is_release() => self.list_state.select_next(),
-            KeyCode::Up if !key.is_release() => self.list_state.select_previous(),
-            KeyCode::Left if !key.is_release() => self.adjust_selected(-STEP),
-            KeyCode::Right if !key.is_release() => self.adjust_selected(STEP),
+            KeyCode::Char('q') | KeyCode::Esc if key.is_press() => {
+                self.hide()
+            },
+            KeyCode::Down => self.list_state.select_next(),
+            KeyCode::Up => self.list_state.select_previous(),
+            KeyCode::Left => self.adjust_selected(-STEP),
+            KeyCode::Right => self.adjust_selected(STEP),
             _ => {}
         }
     }

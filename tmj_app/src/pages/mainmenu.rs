@@ -369,14 +369,18 @@ impl EventDispatcher for MainScreen {
         if self.pop_items.dispatch_key_to_top(key) {
             return;
         }
-        if !key.is_release() {
+        if key.is_release() {
             return;
         }
         match key.code {
             KeyCode::Down => { self.select_state.borrow_mut().select_next(); }
             KeyCode::Up => { self.select_state.borrow_mut().select_previous(); }
-            KeyCode::Enter => { let _ = self.execute_selection(); }
-            KeyCode::Esc => { CmdBuffer::push(tmj_core::command::GameCmd::QuitGame); }
+            KeyCode::Enter if key.is_press() => {
+                let _ = self.execute_selection();
+            }
+            KeyCode::Esc if key.is_press() => {
+                CmdBuffer::push(tmj_core::command::GameCmd::QuitGame);
+            }
             _ => {}
         }
     }

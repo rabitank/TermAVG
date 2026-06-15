@@ -1,15 +1,21 @@
 use anyhow::anyhow;
 use chrono::{FixedOffset, Utc};
-use ratatui::crossterm::event::{DisableMouseCapture, EnableMouseCapture};
+use ratatui::crossterm::event::{
+    DisableMouseCapture, EnableMouseCapture, KeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+    poll, read,
+};
 use ratatui::crossterm::execute;
 use ratatui::crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen, enable_raw_mode};
 use std::error::Error;
 use std::fs::OpenOptions;
+use std::io::Write;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 use tmj_app::app::App;
 use tmj_app::audio::AUDIOM;
 use tmj_core::event::EventManager;
 use tmj_core::event::looper::EventLooper;
+use tmj_core::event::provider;
 use tmj_core::event::sender::EventSender;
 use tmj_core::pathes;
 use tmj_core::pathes::PathResolver;
@@ -32,16 +38,20 @@ impl FormatTime for ChinaLocalTime {
 fn init_term() -> ratatui::Terminal<ratatui::prelude::CrosstermBackend<std::io::Stdout>> {
     let _ = enable_raw_mode();
     let mut stdout = std::io::stdout();
-    // switch terminal buffer, enable mouse trace
     let _ = execute!(stdout, EnterAlternateScreen, EnableMouseCapture);
-    // 保证release事件发送
-    let _ = execute!(
-        stdout,
-        crossterm::event::PushKeyboardEnhancementFlags(
-            crossterm::event::KeyboardEnhancementFlags::REPORT_EVENT_TYPES
-            | crossterm::event::KeyboardEnhancementFlags::REPORT_ALL_KEYS_AS_ESCAPE_CODES
-        )
-    );
+    // 查询终端是否支持 CSI u（yazi 做法）
+    let _ = write!(stdout, "\x1b[?u");
+    let _ = stdout.flush();
+    if poll(Duration::from_millis(50)).unwrap_or(false) {
+        let _ = read(); // 消费响应
+        let _ = execute!(
+            stdout,
+            PushKeyboardEnhancementFlags(
+                KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
+                    | KeyboardEnhancementFlags::REPORT_ALTERNATE_KEYS
+            )
+        );
+    }
     ratatui::init()
 }
 
@@ -56,6 +66,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .truncate(true)
         .open(&writer_path)?;
     let terminal = init_term();
+    provider::REPEAT_DETECTION.store(true, Ordering::Relaxed);
     let mut app = App::new(terminal.into());
     tracing_subscriber::fmt()
         .with_timer(ChinaLocalTime)

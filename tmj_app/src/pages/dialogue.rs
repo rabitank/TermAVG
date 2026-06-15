@@ -504,18 +504,18 @@ impl EventDispatcher for DialogueScene {
         if self.pop_items.dispatch_key_to_top(key) {
             return;
         }
-
-        if key.is_press() {
+        if key.is_release() {
             return;
         }
+
         match key.code {
-            KeyCode::Enter | KeyCode::Backspace | KeyCode::Char(' ') => {
+            KeyCode::Enter | KeyCode::Backspace | KeyCode::Char(' ') if key.is_press() || key.modifiers.contains(KeyModifiers::CONTROL) => {
                 if let Err(e) = self.on_try_push_dialouge() {
                     info!("On key next session failed: {}", e);
                 }
             }
             KeyCode::Char('.')
-                if key.modifiers.contains(KeyModifiers::CONTROL) && key.is_release() =>
+                if key.modifiers.contains(KeyModifiers::CONTROL) && key.is_press() =>
             {
                 #[cfg(debug_assertions)]
                 {
@@ -526,7 +526,7 @@ impl EventDispatcher for DialogueScene {
                         .show();
                 }
             }
-            KeyCode::Esc | KeyCode::Char('q') => {
+            KeyCode::Esc | KeyCode::Char('q') if key.is_press() => {
                 CmdBuffer::push(GameCmd::SaveTo(tmj_core::command::SaveSlot::Temp));
                 CmdBuffer::push(GameCmd::GoScene(UserScreen::Main.to_string()));
             }

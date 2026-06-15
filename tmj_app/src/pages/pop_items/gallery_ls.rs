@@ -234,27 +234,30 @@ impl EventDispatcher for GalleryLsPopItem {
         if self.is_hide() {
             return;
         }
+        if key.is_release() {
+            return;
+        }
 
         if self.is_list_mode() {
             match key.code {
-                KeyCode::Char('q') | KeyCode::Esc if key.is_release() => {
+                KeyCode::Char('q') | KeyCode::Esc if key.is_press() => {
                     self.hide();
                 }
-                KeyCode::Enter if key.is_release() => {
+                KeyCode::Enter if key.is_press() => {
                     if self.selected_image_path().is_some() {
                         self.mode = GalleryMode::Focused;
                     }
                 }
-                KeyCode::Down if !key.is_release() => {
+                KeyCode::Down => {
                     self.list_state.select_next();
                 }
-                KeyCode::Up if !key.is_release() => {
+                KeyCode::Up => {
                     self.list_state.select_previous();
                 }
-                KeyCode::Home if !key.is_release() => {
+                KeyCode::Home => {
                     self.list_state.select_first();
                 }
-                KeyCode::End if !key.is_release() => {
+                KeyCode::End => {
                     self.list_state.select_last();
                 }
                 _ => {}
@@ -263,13 +266,13 @@ impl EventDispatcher for GalleryLsPopItem {
         }
 
         match key.code {
-            KeyCode::Char('q') | KeyCode::Esc if key.is_release() => {
+            KeyCode::Char('q') | KeyCode::Esc if key.is_press() => {
                 self.mode = GalleryMode::List;
             }
-            KeyCode::Left if !key.is_release() => {
+            KeyCode::Left => {
                 self.focus_prev();
             }
-            KeyCode::Right if !key.is_release() => {
+            KeyCode::Right => {
                 self.focus_next();
             }
             _ => {}

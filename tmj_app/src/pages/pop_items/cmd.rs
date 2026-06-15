@@ -72,12 +72,12 @@ impl EventDispatcher for CmdInputItem {
         if self.is_hide() {
             return;
         }
-        if matches!(key.code, KeyCode::Esc) && key.is_release() {
-            self.hide();
-            self.current_input.clear();
+        if key.is_release() {
             return;
         }
-        if key.is_release() {
+        if matches!(key.code, KeyCode::Esc) && key.is_press() {
+            self.hide();
+            self.current_input.clear();
             return;
         }
         match key.code {
@@ -87,7 +87,7 @@ impl EventDispatcher for CmdInputItem {
             KeyCode::Backspace => {
                 self.current_input.pop();
             }
-            KeyCode::Enter => {
+            KeyCode::Enter if key.is_press() => {
                 if self.current_input == "exit" {
                     self.hide();
                     self.current_input.clear();

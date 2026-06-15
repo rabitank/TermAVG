@@ -113,8 +113,13 @@ impl EventDispatcher for AboutContentPopItem {
         if self.is_hide() {
             return;
         }
+        if !key.is_press() {
+            return;
+        }
         match key.code {
-            KeyCode::Char('q') | KeyCode::Esc if key.is_release() => self.hide(),
+            KeyCode::Char('q') | KeyCode::Esc => {
+                self.hide()
+            },
             _ => {}
         }
     }

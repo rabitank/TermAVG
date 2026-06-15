@@ -286,7 +286,7 @@ fn draw_shortkey_bar(
     let key = THEME.key_binding.key;
     let desc = THEME.key_binding.description;
     let line = Line::from(vec![
-        Span::styled(" Enter/点击 ", key),
+        Span::styled(" Enter/空格/点击 ", key),
         Span::styled("继续", desc),
         Span::styled(" s ", key),
         Span::styled("保存", desc),
