@@ -317,10 +317,12 @@ impl AppHandler {
             let (font_size, cell_w, cell_h) = eval_cell_size();
             let window = Arc::new(
                 event_loop
-                    .create_window(WindowAttributes::default())
+                    .create_window(
+                        WindowAttributes::default()
+                            .with_fullscreen(Some(winit::window::Fullscreen::Borderless(None))),
+                    )
                     .unwrap(),
             );
-            window.set_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
             (window, font_size, cell_w, cell_h)
         } else {
             // 窗口化：使用预设尺寸
