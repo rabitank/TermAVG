@@ -272,7 +272,11 @@ impl AudioTrack {
                     break;
                 }
                 AudioOp::Stop => {
-                    self.stop();
+                    for sink in &self.sinks {
+                        sink.sink.stop();
+                    }
+                    self.sinks.clear();
+                    self.waiting = false;
                     break;
                 }
             }
