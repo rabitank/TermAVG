@@ -49,7 +49,7 @@ impl<T: Backend> App<T> {
             if size.width < req.0 || size.height < req.1 {
                 app.terminal.draw(|f| {
                     let msg = format!(
-                        "终端尺寸不足：需要 {}×{}，当前 {}×{}\n请调整终端字号\n\n按 Ctrl+C 退出",
+                        "终端尺寸不足：需要 {}×{}，当前 {}×{}\n请调整终端字号(Ctrl+-调整)或放大窗口\n\n按 Ctrl+C 退出",
                         req.0, req.1, size.width, size.height
                     );
                     f.render_widget(

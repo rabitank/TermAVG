@@ -177,6 +177,7 @@ fn convert_key_event(event: &KeyEvent, mods: &ModifiersState) -> Option<GameEven
             crossterm_mods |= KeyModifiers::SUPER;
         }
         let kind = match event.state {
+            ElementState::Pressed if event.repeat => KeyEventKind::Repeat,
             ElementState::Pressed => KeyEventKind::Press,
             ElementState::Released => KeyEventKind::Release,
         };
@@ -506,6 +507,9 @@ impl ApplicationHandler for AppHandler {
                 }
                 WindowEvent::Resized(size) => {
                     game.app.terminal.backend_mut().resize(size.width, size.height);
+                }
+                WindowEvent::Focused(true) => {
+                    game.window.request_redraw();
                 }
                 _ => {}
             },
