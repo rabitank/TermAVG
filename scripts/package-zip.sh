@@ -21,6 +21,7 @@ mkdir -p "$ZIP_DIR"
 cp "${STAGING}/${BINARY}" "$ZIP_DIR/"
 cp "${STAGING}/README.md" "$ZIP_DIR/"
 cp "${STAGING}/LICENSE"     "$ZIP_DIR/"
+cp doc/logo.png             "$ZIP_DIR/logo.png"
 
 mkdir -p target/artifacts
 cd "$ZIP_DIR"

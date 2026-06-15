@@ -21,7 +21,7 @@ STAGING="staging/${TARGET}"
 PKG_DIR="pkg/arch"
 WORKDIR="$(pwd)"
 
-cp "${STAGING}/${BINARY}" "${STAGING}/README.md" "${STAGING}/LICENSE" "${PKG_DIR}/"
+cp "${STAGING}/${BINARY}" "${STAGING}/README.md" "${STAGING}/LICENSE" "doc/logo.png" "${PKG_DIR}/"
 sed "s/__VERSION__/${VERSION}/g" "${PKG_DIR}/${PKG_TEMPLATE}" > "${PKG_DIR}/PKGBUILD"
 
 PACKAGE_NAME=$(grep '^pkgname=' "${PKG_DIR}/PKGBUILD" | cut -d= -f2)

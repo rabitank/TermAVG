@@ -11,11 +11,13 @@ source=(
     "tmj_terminal"
     "README.md"
     "LICENSE"
+    "logo.png"
 )
-sha256sums=('SKIP' 'SKIP' 'SKIP')
+sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP')
 
 package() {
     install -Dm755 "$srcdir/tmj_terminal" "$pkgdir/usr/bin/tmj_terminal"
     install -Dm644 "$srcdir/README.md"   "$pkgdir/usr/share/doc/tmj/README.md"
     install -Dm644 "$srcdir/LICENSE"     "$pkgdir/usr/share/licenses/tmj/LICENSE"
+    install -Dm644 "$srcdir/logo.png"    "$pkgdir/usr/share/icons/hicolor/256x256/apps/tmj.png"
 }

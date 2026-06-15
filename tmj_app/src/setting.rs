@@ -4,6 +4,10 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use tmj_core::pathes;
 
+fn default_window_title() -> String {
+    "TermAVG".into()
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct MainMenuSessionBgMapItem {
     pub session_id_min: usize,
@@ -28,6 +32,8 @@ pub struct GameSetting {
     pub default_bg_img: PathBuf,
     pub default_face_img: PathBuf,
     pub max_history_ls: usize,
+    #[serde(default = "default_window_title")]
+    pub window_title: String,
 }
 
 impl GameSetting {
@@ -90,6 +96,7 @@ impl Default for GameSetting {
             default_bg_img: "resource/default_background_img.png".into(),
             default_face_img: "resource/default_face_img.png".into(),
             max_history_ls: 60,
+            window_title: default_window_title(),
         }
     }
 }

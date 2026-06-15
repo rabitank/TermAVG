@@ -35,10 +35,12 @@ mkdir -p "${PKG_ROOT}/DEBIAN"
 mkdir -p "${PKG_ROOT}/usr/bin"
 mkdir -p "${PKG_ROOT}/usr/share/doc/${VARIANT}"
 mkdir -p "${PKG_ROOT}/usr/share/licenses/${VARIANT}"
+mkdir -p "${PKG_ROOT}/usr/share/icons/hicolor/256x256/apps"
 
 cp "${STAGING}/${BINARY}"   "${PKG_ROOT}/usr/bin/"
 cp "${STAGING}/README.md"   "${PKG_ROOT}/usr/share/doc/${VARIANT}/"
 cp "${STAGING}/LICENSE"     "${PKG_ROOT}/usr/share/licenses/${VARIANT}/"
+cp doc/logo.png             "${PKG_ROOT}/usr/share/icons/hicolor/256x256/apps/tmj.png"
 
 INSTALLED_SIZE=$(du -sk "$PKG_ROOT" | cut -f1)
 

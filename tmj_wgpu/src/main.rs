@@ -56,6 +56,30 @@ const PRESETS: [SizePreset; 3] = [
     SizePreset { name: "4K",  desc: "2640×1474 +padding", cell_h: 22, cell_w: 11, font_size: 22 },
 ];
 
+/// 根据显示器推荐默认窗口尺寸
+fn screen_size() -> (f32, f32) {
+    if let Ok(displays) = display_info::DisplayInfo::all() {
+        if let Some(d) = displays.iter().find(|d| d.is_primary).or(displays.first()) {
+            return (d.width as f32, d.height as f32);
+        }
+    }
+    (1920.0, 1080.0)
+}
+
+fn recommend_preset() -> usize {
+    let (scr_w, scr_h) = screen_size();
+    let cols = SETTING.resolution.0 as u32;
+    let rows = SETTING.resolution.1 as u32;
+    // 任务栏/标题栏预留 100px
+    let available_h = scr_h as u32 - 100;
+    for (i, preset) in PRESETS.iter().enumerate().rev() {
+        if cols * preset.cell_w <= scr_w as u32 && rows * preset.cell_h <= available_h {
+            return i;
+        }
+    }
+    0
+}
+
 //// 东八区时间格式化 ////
 struct ChinaLocalTime;
 impl FormatTime for ChinaLocalTime {
@@ -86,31 +110,6 @@ fn init_log() {
         });
     let subscriber = tracing_subscriber::Registry::default().with(log_txt_layer);
     tracing::subscriber::set_global_default(subscriber).unwrap();
-}
-
-//// 屏幕信息 ////
-fn screen_size() -> (f32, f32, f32) {
-    if let Ok(displays) = display_info::DisplayInfo::all() {
-        if let Some(d) = displays.iter().find(|d| d.is_primary).or(displays.first()) {
-            return (d.width as f32, d.height as f32, d.scale_factor.max(1.0));
-        }
-    }
-    (1920.0, 1080.0, 1.0)
-}
-
-//// 细胞尺寸 & 字号计算（基于实际显示器） ////
-fn eval_cell_size() -> (u32, u32, u32) {
-    let (scr_w, scr_h, dpi) = screen_size();
-    let rows = SETTING.resolution.1;
-    let dpi_f = dpi.max(1.0);
-    let raw = scr_h / dpi_f / rows as f32;
-    let cell_h = (((raw / 2.0).floor() * 2.0) as u32).max(12).min(24);
-    let cell_w = cell_h / 2;
-    let font_size = cell_h;
-    tracing::info!(
-        "screen {scr_w}x{scr_h} dpi {dpi_f} cell {cell_w}x{cell_h} font_size {font_size}"
-    );
-    (font_size, cell_w, cell_h)
 }
 
 //// winit NamedKey -> crossterm KeyCode ////
@@ -196,7 +195,6 @@ struct LauncherState {
     window: Arc<Window>,
     term: Terminal<WgpuBackend<'static, 'static>>,
     selected: usize,
-    fullscreen: bool,
     size_preset: usize,
     should_start: bool,
     should_exit: bool,
@@ -205,7 +203,6 @@ struct LauncherState {
 impl LauncherState {
     fn menu_labels(&self) -> Vec<String> {
         vec![
-            format!("显示模式    {}", if self.fullscreen { "全屏" } else { "窗口" }),
             format!(
                 "窗口大小    {} （{}）",
                 PRESETS[self.size_preset].name,
@@ -217,7 +214,7 @@ impl LauncherState {
     }
 
     fn item_count(&self) -> usize {
-        4
+        3
     }
 }
 
@@ -308,42 +305,26 @@ struct AppHandler {
 
 impl AppHandler {
     /// 从启动器过渡到游戏
-    fn init_game(&mut self, event_loop: &ActiveEventLoop, fullscreen: bool, size_preset: usize) {
+    fn init_game(&mut self, event_loop: &ActiveEventLoop, size_preset: usize) {
         let cols = SETTING.resolution.0 as u32;
         let rows = SETTING.resolution.1 as u32;
 
-        let (window, font_size, cell_w, cell_h) = if fullscreen {
-            // 全屏：基于实际显示器计算
-            let (font_size, cell_w, cell_h) = eval_cell_size();
-            let window = Arc::new(
-                event_loop
-                    .create_window(
-                        WindowAttributes::default()
-                            .with_fullscreen(Some(winit::window::Fullscreen::Borderless(None))),
-                    )
-                    .unwrap(),
-            );
-            (window, font_size, cell_w, cell_h)
-        } else {
-            // 窗口化：使用预设尺寸
-            let preset = &PRESETS[size_preset];
-            let inner_w = cols * preset.cell_w;
-            let inner_h = rows * preset.cell_h;
-            let window = Arc::new(
-                event_loop
-                    .create_window(
-                        WindowAttributes::default()
-                            .with_inner_size(winit::dpi::LogicalSize::new(
-                                inner_w as f64,
-                                inner_h as f64,
-                            ))
-                            .with_resizable(false)
-                            .with_title("TerminalLove"),
-                    )
-                    .unwrap(),
-            );
-            (window, preset.font_size, preset.cell_w, preset.cell_h)
-        };
+        let preset = &PRESETS[size_preset];
+        let inner_w = cols * preset.cell_w;
+        let inner_h = rows * preset.cell_h;
+        let window = Arc::new(
+            event_loop
+                .create_window(
+                    WindowAttributes::default()
+                        .with_inner_size(winit::dpi::LogicalSize::new(
+                            inner_w as f64,
+                            inner_h as f64,
+                        ))
+                        .with_resizable(false)
+                        .with_title(&SETTING.window_title),
+                )
+                .unwrap(),
+        );
 
         // 初始化事件系统
         let (looper, receiver) = EventLooper::new_with_provider(256, Box::new(NoopProvider));
@@ -351,7 +332,7 @@ impl AppHandler {
         EventManager::init(looper);
         EventManager::with_looper(|l| l.cool_down(Duration::from_millis(100)));
 
-        let terminal = create_backend_and_terminal(&window, font_size, cell_w, cell_h, cols, rows);
+        let terminal = create_backend_and_terminal(&window, preset.font_size, preset.cell_w, preset.cell_h, cols, rows);
         let app = App::new(terminal);
 
         self.phase = Some(AppPhase::Game(GameState {
@@ -372,14 +353,12 @@ impl AppHandler {
                 launch.selected = launch.selected.checked_sub(1).unwrap_or(count - 1);
             }
             Key::Named(NamedKey::Enter) => match launch.selected {
-                0 => launch.fullscreen = !launch.fullscreen,
-                1 => launch.size_preset = (launch.size_preset + 1) % PRESETS.len(),
-                2 => launch.should_start = true,
+                0 => launch.size_preset = (launch.size_preset + 1) % PRESETS.len(),
+                1 => launch.should_start = true,
                 _ => launch.should_exit = true,
             },
             Key::Character(" ") => match launch.selected {
-                0 => launch.fullscreen = !launch.fullscreen,
-                1 => launch.size_preset = (launch.size_preset + 1) % PRESETS.len(),
+                0 => launch.size_preset = (launch.size_preset + 1) % PRESETS.len(),
                 _ => {}
             },
             Key::Named(NamedKey::Escape) => launch.should_exit = true,
@@ -408,7 +387,7 @@ impl ApplicationHandler for AppHandler {
                             (launcher_rows * launcher_cell_h) as f64,
                         ))
                         .with_resizable(false)
-                        .with_title("TerminalLove"),
+                        .with_title(&SETTING.window_title),
                 )
                 .unwrap(),
         );
@@ -426,8 +405,7 @@ impl ApplicationHandler for AppHandler {
             window,
             term,
             selected: 0,
-            fullscreen: true,
-            size_preset: 1,
+            size_preset: recommend_preset(),
             should_start: false,
             should_exit: false,
         }));
@@ -528,10 +506,9 @@ impl ApplicationHandler for AppHandler {
                     return;
                 }
                 if launch.should_start {
-                    let fullscreen = launch.fullscreen;
                     let size_preset = launch.size_preset;
                     self.phase = None;
-                    self.init_game(event_loop, fullscreen, size_preset);
+                    self.init_game(event_loop, size_preset);
                     return;
                 }
 

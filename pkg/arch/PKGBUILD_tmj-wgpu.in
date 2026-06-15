@@ -17,11 +17,13 @@ source=(
     "tmj_wgpu"
     "README.md"
     "LICENSE"
+    "logo.png"
 )
-sha256sums=('SKIP' 'SKIP' 'SKIP')
+sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP')
 
 package() {
     install -Dm755 "$srcdir/tmj_wgpu"  "$pkgdir/usr/bin/tmj_wgpu"
     install -Dm644 "$srcdir/README.md" "$pkgdir/usr/share/doc/tmj-wgpu/README.md"
     install -Dm644 "$srcdir/LICENSE"   "$pkgdir/usr/share/licenses/tmj-wgpu/LICENSE"
+    install -Dm644 "$srcdir/logo.png"  "$pkgdir/usr/share/icons/hicolor/256x256/apps/tmj-wgpu.png"
 }
