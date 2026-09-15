@@ -85,10 +85,10 @@ impl fmt::Debug for AudioOp {
                 .field("duration", duration)
                 .field("curve", curve)
                 .finish(),
-            Self::Play { source: _source, volume } => f
-                .debug_struct("Play")
-                .field("volume", volume)
-                .finish(),
+            Self::Play {
+                source: _source,
+                volume,
+            } => f.debug_struct("Play").field("volume", volume).finish(),
             Self::Wait(arg0) => f.debug_tuple("Wait").field(arg0).finish(),
             Self::Stop => write!(f, "Stop"),
         }
@@ -186,17 +186,17 @@ impl AudioTrack {
         self.op_queue.push_back(op);
     }
 
-    pub fn fade_out(&mut self, duration: Duration) -> &mut Self{
+    pub fn fade_out(&mut self, duration: Duration) -> &mut Self {
         self.op_queue.push_back(AudioOp::fade_out(duration));
         self
     }
 
-    pub fn fade_in(&mut self, source: AudioSource, duration: Duration) -> &mut Self{
+    pub fn fade_in(&mut self, source: AudioSource, duration: Duration) -> &mut Self {
         self.op_queue.push_back(AudioOp::fade_in(source, duration));
         self
     }
 
-    pub fn wait(&mut self, duration: Duration) -> &mut Self{
+    pub fn wait(&mut self, duration: Duration) -> &mut Self {
         self.op_queue.push_back(AudioOp::wait(duration));
         self
     }
@@ -252,7 +252,6 @@ impl AudioTrack {
                 AudioOp::FadeOut { duration, curve } => {
                     info!("track is try fade out {:?}", duration);
                     for sink in self.sinks.iter_mut().filter(|s| !s.is_dead()) {
-
                         info!("sink fade out {:?}", duration);
                         sink.start_fade(0.0, duration, curve);
                     }

@@ -39,7 +39,10 @@ use crossterm::event::{
 };
 
 //// Font data ////
-static FONT_DATA: &[u8] = include_bytes!("./Ligaconsolaslxgw.ttf");
+// MapleMono-NF-CN 经 scripts/patch-font-2x1.py 处理：
+// 垂直度量 asc-desc = 2 * ASCII advance，块元素 ▀ ▄ █ 重画为精确半格，
+// 使 ratatui-wgpu 的单元格恰为 2:1，half-block 像素画得到正方形像素。
+static FONT_DATA: &[u8] = include_bytes!("./MapleMono-NF-CN-2x1.ttf");
 
 //// 窗口大小预设 ////
 struct SizePreset {
