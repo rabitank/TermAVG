@@ -25,6 +25,8 @@ script_sym!(CHARACTER, Type, "可构造的角色类型");
 pub struct Character {
     _current_face: String,
     display: String,
+    #[serde(default = "default_show_face")]
+    show_face: bool,
     stands: HashMap<String, String>,
     faces: HashMap<String, String>,
     voice: HashMap<String, String>,
@@ -32,7 +34,13 @@ pub struct Character {
     extra: toml::Table, // 其他任意字典数据
 }
 
+/// `show_face` 缺省默认值：显示头像框
+fn default_show_face() -> bool {
+    true
+}
+
 script_sym!(DISPLAY, Member, "角色显示名");
+script_sym!(M_SHOW_FACE, Member, "say/sadd 是否显示头像框");
 script_sym!(_STANDS, Member, "立绘表（表情名 → 图片路径）");
 script_sym!(_FACES, Member, "表情名列表");
 script_sym!(_VOICES, Member, "语音表");
@@ -82,6 +90,7 @@ impl RegistableType for Character {
                 let root_id = ctx.alloc_table_id();
                 let mut table = Table::with_tuid(root_id);
                 table.set(DISPLAY, character.display.into_script_val(), None);
+                table.set(M_SHOW_FACE, character.show_face.into_script_val(), None);
                 table.set(
                     _STANDS,
                     ScriptValue::Table(Rc::new(RefCell::new(Table::from_hashmap_with_tuid(
@@ -129,19 +138,23 @@ impl RegistableType for Character {
                     let speed = parse_arg(&args, 1, 20.0, ScriptValue::to_number);
                     let speaker_name =
                         parse_required_member(&table_clone, DISPLAY, ScriptValue::as_string)?;
+                    let show_face = parse_member(&table_clone, M_SHOW_FACE, true, ScriptValue::as_bool);
                     let cur_face =
                         parse_required_member(&table_clone, FACE, ScriptValue::as_string)?;
                     let faces_sv = table_clone.get(_FACES)?;
-                    let face_path = ctx
-                        .borrow()
-                        .resolve_table_value(&faces_sv)
-                        .ok()
-                        .and_then(|faces_tbl| faces_tbl.borrow().get(&cur_face, None))
-                        .and_then(|v| v.as_string())
-                        .unwrap_or_else(|| {
-                            tracing::warn!("got character face img failed; set face none");
-                            String::new()
-                        });
+                    let face_path = if !show_face {
+                        String::new()
+                    } else {
+                        ctx.borrow()
+                            .resolve_table_value(&faces_sv)
+                            .ok()
+                            .and_then(|faces_tbl| faces_tbl.borrow().get(&cur_face, None))
+                            .and_then(|v| v.as_string())
+                            .unwrap_or_else(|| {
+                                tracing::warn!("got character face img failed; set face none");
+                                String::new()
+                            })
+                    };
 
                     tracing::info!("{speaker_name} is saying {text}");
 
@@ -175,19 +188,23 @@ impl RegistableType for Character {
                     let speed = parse_arg(&args, 1, 20.0, ScriptValue::to_number);
                     let speaker_name =
                         parse_required_member(&table_clone, DISPLAY, ScriptValue::as_string)?;
+                    let show_face = parse_member(&table_clone, M_SHOW_FACE, true, ScriptValue::as_bool);
                     let cur_face =
                         parse_required_member(&table_clone, FACE, ScriptValue::as_string)?;
                     let faces_sv = table_clone.get(_FACES)?;
-                    let face_path = ctx
-                        .borrow()
-                        .resolve_table_value(&faces_sv)
-                        .ok()
-                        .and_then(|faces_tbl| faces_tbl.borrow().get(&cur_face, None))
-                        .and_then(|v| v.as_string())
-                        .unwrap_or_else(|| {
-                            tracing::warn!("got character face img failed; set face none");
-                            String::new()
-                        });
+                    let face_path = if !show_face {
+                        String::new()
+                    } else {
+                        ctx.borrow()
+                            .resolve_table_value(&faces_sv)
+                            .ok()
+                            .and_then(|faces_tbl| faces_tbl.borrow().get(&cur_face, None))
+                            .and_then(|v| v.as_string())
+                            .unwrap_or_else(|| {
+                                tracing::warn!("got character face img failed; set face none");
+                                String::new()
+                            })
+                    };
 
                     tracing::info!("{speaker_name} is saying {text}");
 
