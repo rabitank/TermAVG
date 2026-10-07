@@ -113,7 +113,7 @@ impl Shape for PicFrame {
     fn draw(&self, painter: &mut ratatui::widgets::canvas::Painter) {
         if let Some(img) = self.img.as_rgba8() {
             let ([_, max_w], _) = painter.bounds();
-            if let Some((max_x, max_y)) = painter.get_point(max_w - 1_f64, 0_f64) {
+            if let Some((max_x, max_y)) = painter.get_point(*max_w, 0_f64) {
                 for (x, y, pixle) in img.enumerate_pixels() {
                     let a = pixle.alpha();
                     if a <= 1 || x as usize > max_x || y as usize > max_y {

@@ -3659,7 +3659,7 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tmj_app"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "constcat",
@@ -3688,7 +3688,7 @@ dependencies = [
 
 [[package]]
 name = "tmj_core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "crossterm",
@@ -3706,7 +3706,7 @@ dependencies = [
 
 [[package]]
 name = "tmj_macro"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3715,7 +3715,7 @@ dependencies = [
 
 [[package]]
 name = "tmj_terminal"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3734,7 +3734,7 @@ dependencies = [
 
 [[package]]
 name = "tmj_wgpu"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "chrono",
